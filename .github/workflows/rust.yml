@@ -40,10 +40,7 @@ jobs:
       uses: actions-rs/tarpaulin@v0.1
       with:
         args: '--ignore-tests --avoid-cfg-tarpaulin'
-#    - name: Lint
-#      uses: actions-rs/clippy-check@v1
-#      with:
-#        token: ${{ secrets.GITHUB_TOKEN }}
-#        args: -- -D warnings
+    - name: Lint
+      run: cargo clippy -- -D warnings
     - name: Security Vulnerability check
       run: cargo audit
