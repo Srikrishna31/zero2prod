@@ -32,6 +32,8 @@ jobs:
       with:
         command: fmt
         args: --all -- --check
+    - name: Lint
+      run: cargo clippy -- -D warnings
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -40,7 +42,5 @@ jobs:
       uses: actions-rs/tarpaulin@v0.1
       with:
         args: '--ignore-tests --avoid-cfg-tarpaulin'
-    - name: Lint
-      run: cargo clippy -- -D warnings
     - name: Security Vulnerability check
       run: cargo audit
