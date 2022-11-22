@@ -22,6 +22,11 @@ jobs:
         toolchain: stable
         override: true
         components: rustfmt, clippy
+    - name: Formatting
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -34,10 +39,5 @@ jobs:
       uses: actions-rs/clippy-check@v1
       with:
         args: -- -D warnings
-    - name: Formatting
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
     - name: Security Vulnerability check
       run: cargo audit
