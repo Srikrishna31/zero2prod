@@ -79,19 +79,19 @@ jobs:
           command: clippy
           args: -- -D warnings
 
-      - name: Migrate Database
-        run: |
-          sudo apt install libpq-dev -y
-          SKIP_DOCKER=true ./scripts/init_db.sh
-
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --verbose
-      - name: Code Coverage
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          args: '--ignore-tests --avoid-cfg-tarpaulin'
+#      - name: Migrate Database
+#        run: |
+#          sudo apt install libpq-dev -y
+#          SKIP_DOCKER=true ./scripts/init_db.sh
+#
+#      - name: Run tests
+#        uses: actions-rs/cargo@v1
+#        with:
+#          command: test
+#          args: --verbose
+#      - name: Code Coverage
+#        uses: actions-rs/tarpaulin@v0.1
+#        with:
+#          args: '--ignore-tests --avoid-cfg-tarpaulin'
       - name: Security Vulnerability check
         run: cargo audit
