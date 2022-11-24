@@ -66,10 +66,6 @@ jobs:
             --features=${{ env.SQLX_FEATURES }}
             --no-default-features
             --locked
-#      - name: Migrate Database
-#        run: |
-#          sudo apt install libpq-dev -y
-#          SKIP_DOCKER=true ./scripts/init_db.sh
 
       - name: Formatting
         uses: actions-rs/cargo@v1
@@ -83,8 +79,11 @@ jobs:
           command: clippy
           args: -- -D warnings
 
-#      - name: Build
-#        run: cargo build --verbose
+      - name: Migrate Database
+        run: |
+          sudo apt install libpq-dev -y
+          SKIP_DOCKER=true ./scripts/init_db.sh
+
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
