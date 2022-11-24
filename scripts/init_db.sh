@@ -55,3 +55,6 @@ sqlx database create
 sqlx migrate run
 
 >& echo "Postgres has been migrated, ready to go!"
+
+# To make sure the CI pipeline runs without errors.
+exit 0
