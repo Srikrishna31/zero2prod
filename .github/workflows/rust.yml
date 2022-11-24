@@ -66,10 +66,10 @@ jobs:
             --features=${{ env.SQLX_FEATURES }}
             --no-default-features
             --locked
-      - name: Migrate Database
-        run: |
-          sudo apt install libpq-dev -y
-          SKIP_DOCKER=true ./scripts/init_db.sh
+#      - name: Migrate Database
+#        run: |
+#          sudo apt install libpq-dev -y
+#          SKIP_DOCKER=true ./scripts/init_db.sh
 
       - name: Formatting
         uses: actions-rs/toolchain@v1.0.6
