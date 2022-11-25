@@ -1,6 +1,5 @@
 use actix_web::{web, HttpResponse};
 use chrono;
-use log;
 use sqlx::{types::uuid, PgPool};
 use uuid::Uuid;
 
@@ -24,12 +23,12 @@ pub async fn subscribe(
     // Retrieving a connection from the application state!
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
-    log::info!(
+    tracing::info!(
         "Adding '{}' '{}' as a new subscriber.",
         form.email,
         form.name
     );
-    log::info!("Saving new subscriber details in the database");
+    tracing::info!("Saving new subscriber details in the database");
     match sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -45,11 +44,11 @@ pub async fn subscribe(
     .await
     {
         Ok(_) => {
-            log::info!("New subscriber details have been saved");
+            tracing::info!("New subscriber details have been saved");
             HttpResponse::Ok().finish()
         }
         Err(e) => {
-            log::error!("Failed to execute query: {:?}", e);
+            tracing::error!("Failed to execute query: {:?}", e);
             HttpResponse::InternalServerError().finish()
         }
     }
