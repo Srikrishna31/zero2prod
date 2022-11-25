@@ -1,5 +1,5 @@
-use actix_web::{dev::Server, middleware::Logger, web, App, HttpServer};
 use crate::routes;
+use actix_web::{dev::Server, middleware::Logger, web, App, HttpServer};
 use sqlx::PgPool;
 use std::net::TcpListener;
 

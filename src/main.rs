@@ -1,13 +1,11 @@
-use env_logger;
 use sqlx::PgPool;
 use std::net::TcpListener;
 use zero2prod::{configuration, startup};
 
-
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    /// `init` does call `set_logger`, so this is all we need to do. We are falling back to printing
-    /// all logs at info-level or above if RUST_LOG environment variable has not been set.
+    // `init` does call `set_logger`, so this is all we need to do. We are falling back to printing
+    // all logs at info-level or above if RUST_LOG environment variable has not been set.
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     //Panic if we can't read configuration
