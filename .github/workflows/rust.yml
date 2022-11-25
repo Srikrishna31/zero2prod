@@ -4,6 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
+    types: [ opened, synchronize, reopened ]
     branches: [ "main" ]
 
 env:
@@ -67,17 +68,17 @@ jobs:
             --no-default-features
             --locked
 
-      - name: Formatting
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
       # Linting requires database connection to be up, since sqlx connects to database at compile time.
       - name: Migrate Database
         run: |
           sudo apt install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
+
+      - name: Formatting
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
       - name: Lint
         uses: actions-rs/cargo@v1
@@ -90,9 +91,11 @@ jobs:
         with:
           command: test
           args: --verbose
+
       - name: Code Coverage
         uses: actions-rs/tarpaulin@v0.1
         with:
           args: '--ignore-tests --avoid-cfg-tarpaulin'
+
       - name: Security Vulnerability check
         run: cargo audit
