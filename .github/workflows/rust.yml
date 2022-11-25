@@ -72,17 +72,18 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
-      - name: Lint
-        uses: actions-rs/cargo@v1
-        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
-          command: clippy
-          args: -- -D warnings
 
+      # Linting requires database connection to be up, since sqlx connects to database at compile time.
       - name: Migrate Database
         run: |
           sudo apt install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
+
+      - name: Lint
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
 
       - name: Run tests
         uses: actions-rs/cargo@v1
