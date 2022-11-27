@@ -2,6 +2,7 @@ use sqlx::PgPool;
 use std::net::TcpListener;
 use tracing::subscriber::set_global_default;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_log::LogTracer;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 use zero2prod::{configuration, startup};
 
@@ -26,6 +27,9 @@ use zero2prod::{configuration, startup};
 /// what spans should be processed, formatting span data, shipping span data to remote systems, etc.
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    //Redirect all `log`'s events to our subscriber
+    LogTracer::init().expect("Failed to set logger");
+
     // We are falling back to printing all spans at info-level or above if the RUST_LOG environment
     // variable has not been set.
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
