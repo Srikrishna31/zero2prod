@@ -5,7 +5,8 @@ services:
   - name: zero2prod
     # Relative to the repository root
     dockerfile_path: Dockerfile
-    source_dir:
+    source_dir: .
+    github:
       branch: main
       # Deploy a new version on every commit to `main`!
       # Continuous Deployment, here we come!
@@ -20,7 +21,7 @@ services:
     http_port: 8000
     # For production workloads we'd go for at least two! But let's try to keep the bill under control for now...
     instance_count: 1
-    instance_size_slug: basic_xxs
+    instance_size_slug: basic-xxs
     # All incoming requests should be routed to our app
     routes:
       - path: /
