@@ -9,7 +9,7 @@
 # The builder stage doesnot contribute to its size - it is an intermediate step and it is discarded as the end of the build.
 # The only piece of the builder stage that is found in the final artifact is what we explicitly copy over - the compiled
 # binary
-FROM rust:1.65.0 AS builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.65.0 AS chef
 
 # Let's switch our working directory to `app` (equivalent to `cd app`)
 # The `app` folder will be created for us by Docker in case it does not exist already.
@@ -18,6 +18,7 @@ WORKDIR /app
 # Install the required system dependencies for our linking configuration
 RUN apt update && apt install lld clang -y
 
+FROM chef AS planner
 # Copy all files from our working environment to our Docker image
 # Build Context
 # docker build generates an image starting from a recipe (the Dockerfile) and a *build context*.
@@ -31,11 +32,30 @@ RUN apt update && apt install lld clang -y
 # You could use a different path or even a URL(!) as build context depending on your needs.
 COPY . .
 
+# Compute a lock file for our project
+RUN cargo chef prepare --recipe-path recipe.json
+
+# We leverage another Docker feature: layer caching.
+# Each RUN, COPY and ADD instruction in a Dockerfile creates a layer: a diff between the previous state (the layer above)
+# and the current state after having executed teh specified command.
+# Layers are cached: if the starting point of an operation has not changed (e.g. the base image) and the command itself
+# has not changed (e.g. the checksum of the files copied by COPY) Docker does not perform any computation and directly
+# retrieves a copy of the result from the local cache.
+# Docker layer caching is fast and can be leveraged to massively speed up Docker builds.
+FROM chef AS builder
+
+COPY --from=planner /app/recipe.json recipe.json
+
+# Build our project dependencies, not our application!
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Up to this point, if our dependency tree stays the same, all layers should be cached.
+COPY . .
 ENV SQLX_OFFLINE true
 
 # Let's build our binary!
 # We'll use the release profile to make it faaaast
-RUN cargo build --release
+RUN cargo build --release --bin zero2prod
 
 # Runtime stage
 # Use the bare operating system as base image for our runtime stage:
