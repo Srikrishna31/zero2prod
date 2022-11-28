@@ -1,0 +1,4 @@
+# We need to use 0.0.0.0 as host to instruct our application to accept connection from any network interface, not just
+# the local one.
+application:
+    host: 0.0.0.0
