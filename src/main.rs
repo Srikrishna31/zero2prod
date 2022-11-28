@@ -23,7 +23,7 @@ use zero2prod::{configuration, startup, telemetry};
 /// what spans should be processed, formatting span data, shipping span data to remote systems, etc.
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let subscriber = telemetry::get_subscriber("zero2prod".into(), "info".into());
+    let subscriber = telemetry::get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
     telemetry::init_subscriber(subscriber);
     //Panic if we can't read configuration
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
