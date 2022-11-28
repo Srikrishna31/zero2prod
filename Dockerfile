@@ -2,7 +2,14 @@
 # They are organized in layers: you start from a base *image*(usually an OS enriched with a programming language toolchain)
 # and execute a series of commands (COPY, RUN, etc), one after the other, to build the environment you need.
 # We use the latest Rust stable release as the base image
-FROM rust:1.65.0
+# Builder stage
+# This plays nicely with *multi-stage* builds, a useful Docker feature. We can split our build stage in two stages:
+# * a builder stage, to generate a compiled binary;
+# * a runtime stage, to run the binary.
+# The builder stage doesnot contribute to its size - it is an intermediate step and it is discarded as the end of the build.
+# The only piece of the builder stage that is found in the final artifact is what we explicitly copy over - the compiled
+# binary
+FROM rust:1.65.0 AS builder
 
 # Let's switch our working directory to `app` (equivalent to `cd app`)
 # The `app` folder will be created for us by Docker in case it does not exist already.
@@ -30,6 +37,26 @@ ENV SQLX_OFFLINE true
 # We'll use the release profile to make it faaaast
 RUN cargo build --release
 
+# Runtime stage
+# Use the bare operating system as base image for our runtime stage:
+FROM debian:bullseye-slim AS runtime
+
+WORKDIR /app
+
+# Install OpenSSL - it is dynamically linked by some of our dependencies
+# Install ca-certificates - it is needed to verify TLS Certificates when establishing HTTPS connections
+RUN apt update -y \
+    && apt install -y --no-install-recommends openssl ca-certificates \
+    # Clean up
+    && apt autoremove -y \
+    && apt clean -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled binary from the builder environment to our runtime environment
+COPY --from=builder /app/target/release/zero2prod zero2prod
+# We need the configuration file at runtime!
+COPY configuration configuration
+
 ENV APP_ENVIRONMENT production
 # When `docker run` is executed, launch the binary!
-ENTRYPOINT ["./target/release/zero2prod"]
+ENTRYPOINT ["./zero2prod"]
