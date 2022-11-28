@@ -1,7 +1,8 @@
 use crate::routes;
-use actix_web::{dev::Server, middleware::Logger, web, App, HttpServer};
+use actix_web::{dev::Server, web, App, HttpServer};
 use sqlx::PgPool;
 use std::net::TcpListener;
+use tracing_actix_web::TracingLogger;
 
 /// # Observability
 ///
@@ -45,7 +46,8 @@ pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Er
     let server = HttpServer::new(move || {
         App::new()
             // Middlewares are added using the `wrap` method on `App`
-            .wrap(Logger::default())
+            // Instead of `Logger::default`
+            .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(routes::health_check))
             .route("/subscriptions", web::post().to(routes::subscribe))
             // Register the connection as part of the application state
