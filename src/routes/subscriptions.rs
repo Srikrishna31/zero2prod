@@ -10,6 +10,21 @@ pub struct FormData {
     name: String,
 }
 
+impl TryFrom<FormData> for NewSubscriber {
+    type Error = String;
+
+    /// This refactoring gives us a clearer separation of concerns:
+    /// * `try_from` takes care of the conversion from our *wire format*(the url-decoded data
+    /// collected from a HTML form) to our *domain model*(`NewSubscriber`);
+    /// * `subscribe` remains in charge of generating the HTTP response to the incoming HTTP request.
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+
+        Ok(NewSubscriber { email, name })
+    }
+}
+
 /// actix-web uses a *type-map* to represent its application state: a `HashMap` that stores arbitrary
 /// data (using the `Any` type) against their unique type identifier(obtained via `TypeId::of`).
 /// `web::Data`, when a new request comes in, computes the `TypeId` of the type you specified in the
@@ -52,18 +67,10 @@ pub async fn subscribe(
     // Retrieving a connection from the application state!
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
-    let name = match SubscriberName::parse(form.0.name) {
-        Ok(name) => name,
-        //Return early if the name is invalid, with a 400.
-        Err(_) => return HttpResponse::BadRequest().finish(),
+    let new_subscriber = match form.0.try_into() {
+        Ok(form) => form,
+        Err(e) => return HttpResponse::BadRequest().body(e),
     };
-
-    let email = match SubscriberEmail::parse(form.0.email) {
-        Ok(email) => email,
-        Err(_) => return HttpResponse::BadRequest().finish(),
-    };
-
-    let new_subscriber = NewSubscriber { email, name };
 
     match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => HttpResponse::Ok().finish(),
