@@ -1,4 +1,4 @@
-use crate::domain::subscriber_name::SubscriberName;
+use crate::domain::{SubscriberEmail, SubscriberName};
 
 /// # Type Driven Development
 /// Making an incorrect usage pattern unrepresentable, by construction is known as *type driven
@@ -9,6 +9,6 @@ use crate::domain::subscriber_name::SubscriberName;
 /// our code to only be able to represent states that are valid in the domain we are working in. This
 /// particular pattern here is known as "new-type pattern" in the Rust community.
 pub struct NewSubscriber {
-    pub email: String,
+    pub email: SubscriberEmail,
     pub name: SubscriberName,
 }
