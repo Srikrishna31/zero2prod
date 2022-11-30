@@ -58,3 +58,6 @@ reqwest = "0.11"
 once_cell = "1"
 # `claim` provides a fairly comprehensive range of assertions to work with common Rust types - in particular Option and Result
 claim = "0.5"
+# We are not using fake >= 2.4 because it relies on rand 0.8 which has been recently released and it is not yet used by
+# quickchek (soved in its upcoming 1.0 release!)
+fake = "~2.3"
