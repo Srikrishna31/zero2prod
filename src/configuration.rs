@@ -1,10 +1,10 @@
+use crate::domain::SubscriberEmail;
 use config::ConfigError;
 use secrecy::{ExposeSecret, Secret};
 use serde;
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 use sqlx::ConnectOptions;
-use crate::domain::SubscriberEmail;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {

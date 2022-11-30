@@ -43,7 +43,7 @@ use tracing_actix_web::TracingLogger;
 pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
-    email_client: EmailClient
+    email_client: EmailClient,
 ) -> Result<Server, std::io::Error> {
     // Wrap the connection in a smart pointer
     let db_pool = web::Data::new(db_pool);
