@@ -3,7 +3,6 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Debug)]
 pub struct SubscriberName(String);
 
-
 impl SubscriberName {
     /// Returns an instance of `SubscriberName` if the input satisfies all our validation constraints
     /// on subscriber names. It panics otherwise.
