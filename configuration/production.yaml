@@ -4,3 +4,6 @@ application:
     host: 0.0.0.0
 database:
     require_ssl: true
+email_client:
+    base_url: "https://api.postmark.com"
+    sender_email: "krishna@adisols.com"

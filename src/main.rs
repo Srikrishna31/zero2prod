@@ -1,6 +1,6 @@
 use sqlx::postgres::PgPoolOptions;
 use std::net::TcpListener;
-use zero2prod::{configuration, startup, telemetry};
+use zero2prod::{configuration, startup, telemetry, email_client::EmailClient};
 
 /// # tracing-subscriber
 /// `tracing-subscriber` does much more than providing us with a few handy subscribers. It introduces
@@ -35,15 +35,19 @@ async fn main() -> std::io::Result<()> {
         "{}:{}",
         configuration.application.host, configuration.application.port
     );
+    // Bubble up the io::Error if we failed to bind the address
+    // Otherwise call .await on our Server
     let listener = TcpListener::bind(&address).expect("Failed to bind random port");
 
     let port = listener.local_addr().unwrap().port();
 
-    println!("Running the server on: {address}: {port}");
-    // Bubble up the io::Error if we failed to bind the address
-    // Otherwise call .await on our Server
+    let sender_email = configuration.email_client.sender()
+        .expect("Invalid sender email address.");
+    let email_client = EmailClient::new(configuration.email_client.base_url, sender_email);
 
-    startup::run(listener, connection_pool)?.await?;
+    println!("Running the server on: {address}: {port}");
+
+    startup::run(listener, connection_pool, email_client)?.await?;
 
     Ok(())
 }
