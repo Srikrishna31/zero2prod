@@ -41,6 +41,8 @@ async fn main() -> std::io::Result<()> {
 
     let port = listener.local_addr().unwrap().port();
 
+    let timeout = configuration.email_client.timeout();
+
     let sender_email = configuration
         .email_client
         .sender()
@@ -49,6 +51,7 @@ async fn main() -> std::io::Result<()> {
         configuration.email_client.base_url,
         sender_email,
         configuration.email_client.authorization_token,
+        timeout,
     )
     .expect("Invalid email client url");
 
