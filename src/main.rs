@@ -45,8 +45,12 @@ async fn main() -> std::io::Result<()> {
         .email_client
         .sender()
         .expect("Invalid sender email address.");
-    let email_client = EmailClient::new(configuration.email_client.base_url, sender_email)
-        .expect("Invalid email client url");
+    let email_client = EmailClient::new(
+        configuration.email_client.base_url,
+        sender_email,
+        configuration.email_client.authorization_token,
+    )
+    .expect("Invalid email client url");
 
     println!("Running the server on: {address}: {port}");
 
