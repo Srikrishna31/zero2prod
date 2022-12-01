@@ -163,6 +163,7 @@ async fn spawn_app() -> TestApp {
 
     let connection_pool = configure_database(&configuration.database).await;
 
+    let timeout = configuration.email_client.timeout();
     //Build a new email client
     let sender_email = configuration
         .email_client
@@ -172,6 +173,7 @@ async fn spawn_app() -> TestApp {
         configuration.email_client.base_url,
         sender_email,
         configuration.email_client.authorization_token,
+        timeout,
     )
     .expect("Unable to build email client");
 
