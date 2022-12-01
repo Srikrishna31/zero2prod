@@ -5,127 +5,12 @@ use uuid::Uuid;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::{email_client::EmailClient, telemetry};
 
-struct TestApp {
-    address: String,
-    db_pool: PgPool,
+pub(crate) struct TestApp {
+    pub(crate) address: String,
+    pub(crate) db_pool: PgPool,
 }
 
-/// `tokio::test` is the testing equivalent of `tokio::main`. It also spares you from having to specify
-/// the `#[test]` attribute.
-/// You can check what code gets generated using `cargo expand --test health_check` ( <- name of the test file)
-#[tokio::test]
-async fn health_check_works() {
-    // Arrange
-    let app = spawn_app().await;
-    // We need to bring in `reqwest` to perform HTTP requests against our application.
-    let client = reqwest::Client::new();
-
-    // Act
-    let response = client
-        .get(format!("{}/health_check", &app.address))
-        .send()
-        .await
-        .expect("Failed to execute request");
-
-    // Assert
-    assert!(response.status().is_success());
-    assert_eq!(Some(0), response.content_length());
-}
-
-#[tokio::test]
-async fn subscribe_returns_a_200_for_valid_form_data() {
-    // Arrange
-    let app = spawn_app().await;
-    let client = reqwest::Client::new();
-
-    // Act
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
-    let response = client
-        .post(&format!("{}/subscriptions", &app.address))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .expect("Failed to execute request");
-
-    // Assert
-    assert_eq!(200, response.status().as_u16());
-
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
-        .fetch_one(&app.db_pool)
-        .await
-        .expect("Failed to fetch saved subscription.");
-
-    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved.name, "le guin");
-}
-
-#[tokio::test]
-async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
-    // Arrange
-    let app = spawn_app().await;
-    let client = reqwest::Client::new();
-    let url = format!("{}/subscriptions", &app.address);
-    // Act
-    let test_cases = vec![
-        ("name=le%20guin", "missing the mail"),
-        ("email=ursula_le_%40gmail.com", "missing the name"),
-        ("", "missing both name and email"),
-    ];
-
-    for (invalid_body, error_message) in test_cases {
-        // Act
-        let response = client
-            .post(&url)
-            .header("Content-type", "application/x-www-form-urlencoded")
-            .body(invalid_body)
-            .send()
-            .await
-            .expect("Failed to execute request.");
-
-        // Assert
-        assert_eq!(
-            400,
-            response.status().as_u16(),
-            // Additional customised error message on test failure
-            "The API did not fail with 400 Bad Request when the payload was {}.",
-            error_message
-        )
-    }
-}
-
-#[tokio::test]
-async fn subscribe_returns_a_200_when_fields_are_present_but_empty() {
-    // Arrange
-    let app = spawn_app().await;
-    let client = reqwest::Client::new();
-    let test_cases = vec![
-        ("name=&email=coolkrishna31%40gmail.com", "empty name"),
-        ("name=Ursula&email=", "empty email"),
-        ("name=Ursula&email=definitely-not-an-email", "invalid email"),
-    ];
-
-    for (body, description) in test_cases {
-        //Act
-        let response = client
-            .post(&format!("{}/subscriptions", &app.address))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(body)
-            .send()
-            .await
-            .expect("Failed to execute request");
-
-        // Assert
-        assert_eq!(
-            400,
-            response.status().as_u16(),
-            "The API did not return a 200 OK when the payload was {}.",
-            description
-        );
-    }
-}
-/// Ensure that the `tracing` stack is only initialised once using `once_cell`
+// Ensure that the `tracing` stack is only initialised once using `once_cell`
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
@@ -147,7 +32,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 /// No `.await` call, therefore no need for `spawn_app` to be async now. We are also running tests, so
 /// it is not worth it to propagate errors: if we fail to perform the required setup we can just panic
 /// and crash all the things.
-async fn spawn_app() -> TestApp {
+pub(crate) async fn spawn_app() -> TestApp {
     // The first time `initialize` is invoked the code in `TRACING` is executed. All other invocations
     // will instead skip execution.
     Lazy::force(&TRACING);
