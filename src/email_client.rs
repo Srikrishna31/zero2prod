@@ -12,12 +12,12 @@ pub struct EmailClient {
 
 impl EmailClient {
     pub fn new(
-        base_url: String,
+        base_url: &str,
         sender: SubscriberEmail,
         authorization_token: Secret<String>,
         timeout: std::time::Duration,
     ) -> Result<Self, String> {
-        match Url::parse(&base_url) {
+        match Url::parse(base_url) {
             Ok(url) => Ok(Self {
                 http_client: Client::builder().timeout(timeout).build().unwrap(),
                 base_url: url,
@@ -121,7 +121,7 @@ mod tests {
     /// Get at test instance of `EmailClient`
     fn email_client(base_url: String) -> EmailClient {
         EmailClient::new(
-            base_url,
+            &base_url,
             email(),
             Secret::new(Faker.fake()),
             std::time::Duration::from_millis(200),
