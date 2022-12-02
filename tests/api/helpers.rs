@@ -50,12 +50,16 @@ pub(crate) async fn spawn_app() -> TestApp {
     // will instead skip execution.
     Lazy::force(&TRACING);
 
+    // Launch a mock server to stand in for Postmark's API
+    let email_server = MockServer::start().await;
+
     let configuration = {
         let mut c = get_configuration().expect("Failed to read configuration.");
         // Randomize the database table name for each test run, to preserve test isolation
         c.database.database_name = Uuid::new_v4().to_string();
         // Use a random OS port
         c.application.port = 0;
+        c.email_client.base_url = email_server.uri();
         c
     };
 
@@ -67,8 +71,6 @@ pub(crate) async fn spawn_app() -> TestApp {
         .expect("Failed to build application");
 
     let address = format!("http://127.0.0.1:{}", application.port());
-
-    let email_server = MockServer::start().await;
 
     // launch the server as a background task
     // tokio::spawn returns a handle to the spawned future, but we have no use for it here, hence the
