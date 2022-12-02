@@ -1,12 +1,14 @@
 use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
+use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::{startup, startup::Application, telemetry};
 
 pub(crate) struct TestApp {
     pub(crate) address: String,
     pub(crate) db_pool: PgPool,
+    pub(crate) email_server: MockServer,
 }
 
 impl TestApp {
@@ -66,6 +68,8 @@ pub(crate) async fn spawn_app() -> TestApp {
 
     let address = format!("http://127.0.0.1:{}", application.port());
 
+    let email_server = MockServer::start().await;
+
     // launch the server as a background task
     // tokio::spawn returns a handle to the spawned future, but we have no use for it here, hence the
     // non-binding let
@@ -74,6 +78,7 @@ pub(crate) async fn spawn_app() -> TestApp {
     TestApp {
         address,
         db_pool: startup::get_connection_pool(&configuration.database),
+        email_server,
     }
 }
 
