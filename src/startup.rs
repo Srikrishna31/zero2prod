@@ -1,45 +1,14 @@
-use std::io::ErrorKind;
-use crate::{email_client::EmailClient, routes};
 use crate::configuration::{DatabaseSettings, Settings};
+use crate::{email_client::EmailClient, routes};
 use actix_web::{dev::Server, web, App, HttpServer};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
-use tracing_subscriber::fmt::time;
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
         .acquire_timeout(std::time::Duration::from_secs(2))
         .connect_lazy_with(configuration.with_db())
-}
-
-pub async fn build(configuration: Settings) -> Result<Server, std::io::Error> {
-    let connection_pool = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.database.with_db());
-
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout
-    )
-    .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
-
-    let address = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.port,
-    );
-
-    let listener = TcpListener::bind(address)?;
-
-    run(listener, connection_pool, email_client)
 }
 
 pub struct Application {
@@ -58,9 +27,9 @@ impl Application {
 
         let timeout = configuration.email_client.timeout();
         let email_client = EmailClient::new(
-            configuration.email_client.base_url,
+            &configuration.email_client.base_url,
             sender_email,
-            configuration.email_client.authorization_token,
+            configuration.email_client.authorization_token.clone(),
             timeout,
         )
         .expect("Unable to build email client");
@@ -76,7 +45,7 @@ impl Application {
         let server = run(listener, connection_pool, email_client)?;
 
         // We "save" the bound port in one of `Application`'s fields.
-        Ok(Self{port, server})
+        Ok(Self { port, server })
     }
 
     pub fn port(&self) -> u16 {
@@ -89,6 +58,7 @@ impl Application {
         self.server.await
     }
 }
+
 /// # Observability
 ///
 /// The only thing we can rely on to understand and debug an unknown unknown is **telemetry data**:

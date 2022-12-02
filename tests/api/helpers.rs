@@ -1,10 +1,8 @@
 use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
-use std::net::TcpListener;
 use uuid::Uuid;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::{email_client::EmailClient, startup, telemetry};
-use zero2prod::startup::Application;
+use zero2prod::{startup, startup::Application, telemetry};
 
 pub(crate) struct TestApp {
     pub(crate) address: String,
@@ -38,9 +36,17 @@ pub(crate) async fn spawn_app() -> TestApp {
     // will instead skip execution.
     Lazy::force(&TRACING);
 
-    let mut configuration = get_configuration().expect("Failed to read configuration.");
-    // Randomize the database table name for each test run, to preserve test isolation
-    configuration.database.database_name = Uuid::new_v4().to_string();
+    let configuration = {
+        let mut c = get_configuration().expect("Failed to read configuration.");
+        // Randomize the database table name for each test run, to preserve test isolation
+        c.database.database_name = Uuid::new_v4().to_string();
+        // Use a random OS port
+        c.application.port = 0;
+        c
+    };
+
+    // Create and migrate the database
+    configure_database(&configuration.database).await;
 
     let application = Application::build(configuration.clone())
         .await

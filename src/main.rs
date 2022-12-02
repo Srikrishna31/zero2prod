@@ -1,6 +1,4 @@
-use sqlx::postgres::PgPoolOptions;
-use std::net::TcpListener;
-use zero2prod::{configuration, email_client::EmailClient, startup, telemetry};
+use zero2prod::{configuration, startup::Application, telemetry};
 
 /// # tracing-subscriber
 /// `tracing-subscriber` does much more than providing us with a few handy subscribers. It introduces
@@ -23,41 +21,22 @@ use zero2prod::{configuration, email_client::EmailClient, startup, telemetry};
 /// what spans should be processed, formatting span data, shipping span data to remote systems, etc.
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let subscriber = telemetry::get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
-    telemetry::init_subscriber(subscriber);
     //Panic if we can't read configuration
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
-    let connection_pool = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.database.with_db());
     // We have removed the hard-coded `8000` - it's now coming from our settings!
     let address = format!(
         "{}:{}",
         configuration.application.host, configuration.application.port
     );
-    // Bubble up the io::Error if we failed to bind the address
-    // Otherwise call .await on our Server
-    let listener = TcpListener::bind(&address).expect("Failed to bind random port");
 
-    let port = listener.local_addr().unwrap().port();
+    let subscriber = telemetry::get_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
+    telemetry::init_subscriber(subscriber);
 
-    let timeout = configuration.email_client.timeout();
+    let application = Application::build(configuration).await?;
 
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    )
-    .expect("Invalid email client url");
+    println!("Running the server on: {address}: {}", application.port());
 
-    println!("Running the server on: {address}: {port}");
-
-    startup::run(listener, connection_pool, email_client)?.await?;
+    application.run_until_stopped().await?;
 
     Ok(())
 }
