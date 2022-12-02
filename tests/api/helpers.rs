@@ -3,7 +3,8 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::{email_client::EmailClient, telemetry};
+use zero2prod::{email_client::EmailClient, startup, telemetry};
+use zero2prod::startup::Application;
 
 pub(crate) struct TestApp {
     pub(crate) address: String,
@@ -37,41 +38,24 @@ pub(crate) async fn spawn_app() -> TestApp {
     // will instead skip execution.
     Lazy::force(&TRACING);
 
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
-    //Retrieve the port assigned to us by the OS
-    let port = listener.local_addr().unwrap().port();
-    let address = format!("http://127.0.0.1:{port}");
-
     let mut configuration = get_configuration().expect("Failed to read configuration.");
     // Randomize the database table name for each test run, to preserve test isolation
     configuration.database.database_name = Uuid::new_v4().to_string();
 
-    let connection_pool = configure_database(&configuration.database).await;
+    let application = Application::build(configuration.clone())
+        .await
+        .expect("Failed to build application");
 
-    let timeout = configuration.email_client.timeout();
-    //Build a new email client
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    )
-    .expect("Unable to build email client");
+    let address = format!("http://127.0.0.1:{}", application.port());
 
-    let server = zero2prod::startup::run(listener, connection_pool.clone(), email_client)
-        .expect("Failed to bind address");
     // launch the server as a background task
     // tokio::spawn returns a handle to the spawned future, but we have no use for it here, hence the
     // non-binding let
-    let _ = tokio::spawn(server);
+    let _ = tokio::spawn(application.run_until_stopped());
 
     TestApp {
         address,
-        db_pool: connection_pool,
+        db_pool: startup::get_connection_pool(&configuration.database),
     }
 }
 
