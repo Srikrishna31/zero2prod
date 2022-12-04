@@ -1,5 +1,6 @@
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
+use crate::startup::ApplicationBaseUrl;
 use actix_web::{web, HttpResponse};
 use chrono;
 use sqlx::PgPool;
@@ -68,6 +69,7 @@ pub async fn subscribe(
     // Retrieving a connection from the application state!
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
+    base_url: web::Data<ApplicationBaseUrl>,
 ) -> HttpResponse {
     let new_subscriber = match form.0.try_into() {
         Ok(form) => form,
@@ -78,7 +80,7 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if send_confirmation_email(&email_client, new_subscriber)
+    if send_confirmation_email(&email_client, new_subscriber, &base_url.as_ref().0)
         .await
         .is_err()
     {
@@ -95,8 +97,10 @@ pub async fn subscribe(
 async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
+    base_url: &String,
 ) -> Result<(), reqwest::Error> {
-    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    // Build a confirmation link with a dynamic root
+    let confirmation_link = format!("{base_url}/subscriptions/confirm?subscription_token=mytoken");
     let plain_body = format!(
         "Welcome to our newsletter!\nVisit {confirmation_link} to confirm your subscription."
     );
