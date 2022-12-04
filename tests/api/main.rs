@@ -1,6 +1,7 @@
 mod health_check;
 mod helpers;
 mod subscriptions;
+mod subscriptions_confirm;
 
 /// Each file in tests/ folder gets compiled as its own crate. `cargo` compiles each test executable
 /// in isolation and warns us if, for a specific tet file, one or more public functions in `helpers`
