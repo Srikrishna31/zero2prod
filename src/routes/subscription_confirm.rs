@@ -5,6 +5,7 @@ use actix_web::{web, HttpResponse};
 /// incoming request path. It is enough to add a function parameter of type `web::Query<Parameter>`
 /// to confirm to instruct `actix-web` to only call the handler if the extraction was successful. If
 /// the extraction failed, a `400 Bad Request` is automatically returned to the caller.
+#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 pub struct Parameters {
     subscription_token: String,

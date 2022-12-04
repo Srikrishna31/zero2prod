@@ -9,6 +9,7 @@ pub(crate) struct TestApp {
     pub(crate) address: String,
     pub(crate) db_pool: PgPool,
     pub(crate) email_server: MockServer,
+    pub(crate) port: u16,
 }
 
 impl TestApp {
@@ -70,7 +71,8 @@ pub(crate) async fn spawn_app() -> TestApp {
         .await
         .expect("Failed to build application");
 
-    let address = format!("http://127.0.0.1:{}", application.port());
+    let port = application.port();
+    let address = format!("http://127.0.0.1:{}", &port);
 
     // launch the server as a background task
     // tokio::spawn returns a handle to the spawned future, but we have no use for it here, hence the
@@ -81,6 +83,7 @@ pub(crate) async fn spawn_app() -> TestApp {
         address,
         db_pool: startup::get_connection_pool(&configuration.database),
         email_server,
+        port,
     }
 }
 
