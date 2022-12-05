@@ -6,6 +6,7 @@ use chrono;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sqlx::{PgPool, Postgres, Transaction};
+use tera::{Context,Tera};
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -60,7 +61,7 @@ impl TryFrom<FormData> for NewSubscriber {
 /// while the function body focuses on the actual business logic.
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, pool, email_client),
+    skip(form, pool, email_client, base_url, templates),
     fields(
         subscriber_email = %form.email,
         subscriber_name = %form.name
@@ -72,6 +73,7 @@ pub async fn subscribe(
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
+    templates: web::Data<Tera>,
 ) -> HttpResponse {
     let new_subscriber = match form.0.try_into() {
         Ok(form) => form,
@@ -105,6 +107,7 @@ pub async fn subscribe(
         new_subscriber,
         &base_url.as_ref().0,
         &subscription_token,
+        &templates,
     )
     .await
     .is_err()
@@ -144,29 +147,36 @@ pub async fn subscribe(
 /// might be running, concurrently, against the same tables.
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
-    skip(email_client, new_subscriber, base_url, subscription_token)
+    skip(email_client, new_subscriber, base_url, subscription_token, templates)
 )]
 async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
     base_url: &String,
     subscription_token: &str,
-) -> Result<(), reqwest::Error> {
+    templates: &Tera,
+) -> Result<(), String> {
     // Build a confirmation link with a dynamic root
     let confirmation_link =
         format!("{base_url}/subscriptions/confirm?subscription_token={subscription_token}");
-    let plain_body = format!(
-        "Welcome to our newsletter!\nVisit {confirmation_link} to confirm your subscription."
-    );
-    let html_body = format!(
-        "Welcome to our newsletter!<bt />\
-        Click <a href=\"{confirmation_link}\">here</a> to confirm your subscription."
-    );
 
-    // Send a (useless) email to the new subscriber. We are ignoring email delivery errors for now.
+    let mut template_context = Context::new();
+    template_context.insert("confirmation_link", &confirmation_link);
+    let html_body = templates.render("confirmation.html", &template_context)
+        .map_err(|e| {
+            println!("Error rendering template: {:?}", e);
+            e.to_string()
+        } )?;
+    let plain_body = templates.render("confirmation.txt", &template_context)
+        .map_err(|e| e.to_string())?;
+
+    println!("{}", &plain_body);
+
+    // We are ignoring email delivery errors for now.
     email_client
         .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
+        .map_err(|e| e.to_string())
 }
 
 #[tracing::instrument(
