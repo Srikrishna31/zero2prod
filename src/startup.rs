@@ -1,8 +1,10 @@
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::{email_client::EmailClient, routes};
 use actix_web::{dev::Server, web, web::Data, App, HttpServer};
+use once_cell::sync::Lazy;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
+use tera::Tera;
 use tracing_actix_web::TracingLogger;
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
@@ -116,6 +118,7 @@ pub fn run(
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
+    Lazy::force(&TEMPLATES);
 
     let server = HttpServer::new(move || {
         App::new()
@@ -129,9 +132,22 @@ pub fn run(
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(base_url.clone())
+            .app_data(TEMPLATES.clone())
     })
     .listen(listener)?
     .run();
 
     Ok(server)
 }
+
+static TEMPLATES: Lazy<Tera> = Lazy::new(|| {
+    let mut tera = match Tera::new("../templates/**/*") {
+        Ok(t) => t,
+        Err(e) => {
+            println!("Parsing error(s): {e}");
+            ::std::process::exit(1); //should we exit the process?
+        }
+    };
+    tera.autoescape_on(vec![".html", ".txt"]);
+    tera
+});
