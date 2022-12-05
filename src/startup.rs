@@ -118,20 +118,7 @@ fn run(
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
-
-    let tera = Data::new({
-        let mut tera = match Tera::new("templates/**/*") {
-            Ok(t) => t,
-            Err(e) => {
-                println!("Parsing error(s): {e}");
-                ::std::process::exit(1); //should we exit the process?
-            }
-        };
-        //tera.autoescape_on(vec![".html", ".txt"]);
-        let template_names: Vec<&str> = tera.get_template_names().collect();
-        println!("Registered templates: {:?}", template_names);
-        tera
-    });
+    let templates = Data::new(Lazy::force(&TEMPLATES));
 
     let server = HttpServer::new(move || {
         App::new()
@@ -145,10 +132,25 @@ fn run(
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(base_url.clone())
-            .app_data(tera.clone())
+            .app_data(templates.clone())
     })
     .listen(listener)?
     .run();
 
     Ok(server)
 }
+
+static TEMPLATES: Lazy<Tera> = Lazy::new(|| {
+    let mut tera = match Tera::new("templates/**/*") {
+        Ok(t) => t,
+        Err(e) => {
+            println!("Parsing error(s): {e}");
+            ::std::process::exit(1); //should we exit the process?
+        }
+    };
+    //Disable auto-escaping for now.
+    tera.autoescape_on(vec![]);
+    let template_names: Vec<&str> = tera.get_template_names().collect();
+    println!("Registered templates: {:?}", template_names);
+    tera
+});

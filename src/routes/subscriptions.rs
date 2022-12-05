@@ -6,7 +6,7 @@ use chrono;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sqlx::{PgPool, Postgres, Transaction};
-use tera::{Context,Tera};
+use tera::{Context, Tera};
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -73,7 +73,7 @@ pub async fn subscribe(
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
-    templates: web::Data<Tera>,
+    templates: web::Data<&Tera>,
 ) -> HttpResponse {
     let new_subscriber = match form.0.try_into() {
         Ok(form) => form,
@@ -162,15 +162,12 @@ async fn send_confirmation_email(
 
     let mut template_context = Context::new();
     template_context.insert("confirmation_link", &confirmation_link);
-    let html_body = templates.render("confirmation.html", &template_context)
-        .map_err(|e| {
-            println!("Error rendering template: {:?}", e);
-            e.to_string()
-        } )?;
-    let plain_body = templates.render("confirmation.txt", &template_context)
+    let html_body = templates
+        .render("confirmation.html", &template_context)
         .map_err(|e| e.to_string())?;
-
-    println!("{}", &plain_body);
+    let plain_body = templates
+        .render("confirmation.txt", &template_context)
+        .map_err(|e| e.to_string())?;
 
     // We are ignoring email delivery errors for now.
     email_client
