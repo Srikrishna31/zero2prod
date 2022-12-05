@@ -37,6 +37,8 @@ tracing-actix-web = "0.6"
 serde-aux = "4"
 unicode-segmentation = "1"
 validator="0.16"
+# We need the `std_rng` to get access to the PRNG we want.
+rand = {version = "0.8", features = ["std_rng"] }
 #Using table-like toml syntax to avoid a super-long line!
 [dependencies.sqlx]
 version = "0.6"
