@@ -5,7 +5,7 @@ use actix_web::{web, HttpResponse};
 use chrono;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -78,16 +78,25 @@ pub async fn subscribe(
         Err(e) => return HttpResponse::BadRequest().body(e),
     };
 
-    let subscriber_id = match insert_subscriber(&pool, &new_subscriber).await {
+    let mut transaction = match pool.begin().await {
+        Ok(transaction) => transaction,
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    };
+
+    let subscriber_id = match insert_subscriber(&mut transaction, &new_subscriber).await {
         Ok(id) => id,
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
 
     let subscription_token = generate_subscription_token();
-    if store_token(&pool, subscriber_id, &subscription_token)
+    if store_token(&mut transaction, subscriber_id, &subscription_token)
         .await
         .is_err()
     {
+        return HttpResponse::InternalServerError().finish();
+    }
+
+    if transaction.commit().await.is_err() {
         return HttpResponse::InternalServerError().finish();
     }
 
@@ -106,6 +115,33 @@ pub async fn subscribe(
     HttpResponse::Ok().finish()
 }
 
+/// # Database Transcations
+/// Our `POST /subscriptions` handler has grown in complexity - we are now performing two `INSERT`
+/// queries against our Postgres database: one to store the details of the new subscriber, one to
+/// store the newly generated subscription token.
+///
+/// What happens if the application crashes between those two operations?
+///
+/// There are three possible states for our database after an invocation of `POST /subscriptions`:
+/// * a new subscriber and its token have been persisted;
+/// * a new subscriber has been persisted, without a token;
+/// * nothing has been persisted.
+///
+/// The more queries you have, the worse it gets to reason about the possible end states of our database.
+///
+/// Relational databases (and a few others) provide a mechanism to mitigate this issue: **transations**.
+///
+/// Transactions are a way to group together related operations in a single **unit of work**.
+///
+/// The database guarantees that all operations within a transaction will succeed or fail together:
+/// the database will never be left in a state where the effect of only a subset of the queries in a
+/// transaction is visible. If any of the queries within a transaction fails the database **rolls back**:
+/// all changes performed by previous queries are reverted, the operation is aborted.
+/// You can also explicitly trigger a rollback with the `ROLLBACK` statement.
+///
+/// Transactions are a deep topic: they not only provide a way to convert multiple statements into an
+/// all-or-nothing operation, they also hide the effect of uncommitted changes from other queries that
+/// might be running, concurrently, against the same tables.
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
     skip(email_client, new_subscriber, base_url, subscription_token)
@@ -135,10 +171,10 @@ async fn send_confirmation_email(
 
 #[tracing::instrument(
     name = "Saving new subscriber details in the database",
-    skip(new_subscriber, pool)
+    skip(new_subscriber, transaction)
 )]
 async fn insert_subscriber(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     new_subscriber: &NewSubscriber,
 ) -> Result<Uuid, sqlx::Error> {
     let subscriber_id = Uuid::new_v4();
@@ -152,7 +188,7 @@ async fn insert_subscriber(
         new_subscriber.name.as_ref(),
         chrono::Utc::now()
     )
-    .execute(pool)
+    .execute(transaction)
     .await
     .map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
@@ -178,10 +214,10 @@ fn generate_subscription_token() -> String {
 
 #[tracing::instrument(
     name = "Store subscription token in the database",
-    skip(subscription_token, pool)
+    skip(subscription_token, transaction)
 )]
 async fn store_token(
-    pool: &PgPool,
+    transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
     subscription_token: &str,
 ) -> Result<(), sqlx::Error> {
@@ -191,7 +227,7 @@ async fn store_token(
         subscription_token,
         subscriber_id
     )
-    .execute(pool)
+    .execute(transaction)
     .await
     .map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
