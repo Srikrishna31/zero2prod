@@ -108,7 +108,7 @@ impl Application {
 /// a *local* decision: it is enough to look at the function to decide what deserves to be captured
 /// in a log record. This enables libraries to be instrumented effectively, extending the reach of our
 /// telemetry outside the boundaries of the code we have written first-hand.
-pub fn run(
+fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
@@ -118,7 +118,20 @@ pub fn run(
     let db_pool = web::Data::new(db_pool);
     let email_client = web::Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
-    Lazy::force(&TEMPLATES);
+
+    let tera = Data::new({
+        let mut tera = match Tera::new("templates/**/*") {
+            Ok(t) => t,
+            Err(e) => {
+                println!("Parsing error(s): {e}");
+                ::std::process::exit(1); //should we exit the process?
+            }
+        };
+        //tera.autoescape_on(vec![".html", ".txt"]);
+        let template_names: Vec<&str> = tera.get_template_names().collect();
+        println!("Registered templates: {:?}", template_names);
+        tera
+    });
 
     let server = HttpServer::new(move || {
         App::new()
@@ -132,22 +145,10 @@ pub fn run(
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(base_url.clone())
-            .app_data(TEMPLATES.clone())
+            .app_data(tera.clone())
     })
     .listen(listener)?
     .run();
 
     Ok(server)
 }
-
-static TEMPLATES: Lazy<Tera> = Lazy::new(|| {
-    let mut tera = match Tera::new("../templates/**/*") {
-        Ok(t) => t,
-        Err(e) => {
-            println!("Parsing error(s): {e}");
-            ::std::process::exit(1); //should we exit the process?
-        }
-    };
-    tera.autoescape_on(vec![".html", ".txt"]);
-    tera
-});
