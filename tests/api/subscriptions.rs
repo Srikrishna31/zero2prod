@@ -2,6 +2,37 @@ use crate::helpers::spawn_app;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
+/// # Errors
+/// Errors serve two main purposes:
+/// * Control flow (i.e. determine what to do next);
+/// * Reporting(e.g. investigate, *after the fact*, what went wrong).
+///
+/// We can also distinguish errors based on their location:
+/// * Internal (i.e. a function calling another function within our application);
+/// * At the edge(i.e. an API request that we failed to fulfill).
+///
+/// Control flow is scripted: all information required to take a decision on what to do next must be
+/// accessible to a **machine**.
+///
+/// We use types(e.g. enum variables), methods and fields for internal errors.
+///
+/// We rely on status codes for errors at the edge.
+///
+/// Error reports, instead, are primarily consumed by **humans**. The content has to be tuned
+/// depending on the audience. An operator has access to the internals of the system - they should be
+/// provided with as much **context** as possible on the failure mode.
+///
+/// A user sits outside the boundary of the application: they should only be given the amount of
+/// information required to adjust *their* behavior if necessary(e.g. fix malformed inputs).
+///
+/// We can visualize this mental model using a 2x2 table with `Location` as columns and `Purpose` as
+/// rows:
+///
+/// |                  |        Internal        | At the edge   |
+/// |------------------|------------------------|---------------|
+/// | **Control Flow** | Types, methods, fields | Status codes  |
+/// | **Reporting**    |     Logs/traces        | Response body |
+///
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
@@ -139,4 +170,22 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
 
     // The two links should be identical
     assert_eq!(confirmation_links.html, confirmation_links.plain_text);
+}
+
+#[tokio::test]
+async fn subscribe_fails_if_there_is_a_fatal_database_error() {
+    // Arrange
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    // Sabotage the database
+    sqlx::query!("ALTER TABLE subscription_tokens DROP COLUMN subscription_token;",)
+        .execute(&app.db_pool)
+        .await
+        .unwrap();
+
+    // Act
+    let response = app.post_subscriptions(body.into()).await;
+
+    // Assert
+    assert_eq!(response.status().as_u16(), 500);
 }
