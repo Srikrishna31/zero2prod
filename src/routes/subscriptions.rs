@@ -21,8 +21,13 @@ use uuid::Uuid;
 /// When working with errors, we can reason about the two traits as follows: `Debug` returns as much
 /// information as possible while `Display` gives us a brief description of the failure we encountered
 /// with the essential amount of context.
-#[derive(Debug)]
 pub struct StoreTokenError(sqlx::Error);
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
 
 impl std::fmt::Display for StoreTokenError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,6 +39,46 @@ impl std::fmt::Display for StoreTokenError {
 }
 
 impl ResponseError for StoreTokenError {}
+
+/// The `Error` trait is, first and foremost, a way to **semantically** mark our type as being an error.
+/// It helps a reader of our codebase to immediately spot its purpose.
+///
+/// It is also a way for the Rust community to standardise on the minimum requirements for a **good**
+/// error:
+/// * it should provide different representations (`Debug` and `Display`), tuned to different audiences;
+/// * it should be possible to look at the underlying cause of the error, if any (`source`).
+///
+impl std::error::Error for StoreTokenError {
+    /// # Trait Objects
+    /// Trait objects, just like generic type parameters, are a way to achieve polymorphism in Rust:
+    /// invoke different implementations of the same interface. Generic types are resolved at
+    /// compile-time (static dispatch), trait objects incur a runtime cost (dynamic dispatch).
+    ///
+    /// Why does the standard library return a trait object?
+    ///
+    /// It gives developers a way to access the underlying root cause of current error while keeping
+    /// it *opaque*. It does not leak any information about the type of the underlying root cause -
+    /// you only get access to the methods exposed by the `Error` trait: different representations
+    /// (`Debug`, `Display`), the chance to go one level deeper in the **error chain** using `source`.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // The compiler transparently casts `&sqlx::Error` into a `&dyn Error`
+        Some(&self.0)
+    }
+}
+
+fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    writeln!(f, "{e}\n")?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        writeln!(f, "Caused by: \n\t{cause}")?;
+        current = cause.source();
+    }
+
+    Ok(())
+}
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -259,7 +304,7 @@ async fn store_token(
     )
     .execute(transaction)
     .await
-    .map_err(|e| StoreTokenError(e))?;
+    .map_err(StoreTokenError)?;
 
     Ok(())
 }
