@@ -26,7 +26,7 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
         }
     });
     let response = reqwest::Client::new()
-        .post(&format!("{}/newsletter", &app.address))
+        .post(&format!("{}/newsletters", &app.address))
         .json(&newsletter_request_body)
         .send()
         .await
@@ -38,6 +38,20 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
 }
 
 /// Use the public API of the application under test to create an unconfirmed subscriber.
+/// # Scoped Mocks
+/// With `mount`, the behavior we specify remains active as long as the underlying `MockServer` is up
+/// and running.
+///
+/// With `mount_as_scoped`, instead we get back a guard object - a `MockGuard`.
+///
+/// `MockGuard` has a custom `Drop` implementation: when it goes out of scope, `wiremock` instructs
+/// the underlying `MockServer` to stop honouring the specified mock behavior. In other words, we stop
+/// returning 200 to `POST /email` at the end of `create_unconfirmed_subscriber`. The mock behavior
+/// needed for our test helper **stays local** to the test helper itself.
+///
+/// One more thing happens when a `MockGuard` is dropped - we **eagerly** check that expectations on
+/// the scoped mock are verified. This creates a useful feedback loop to keep our test helpers clean
+/// and up-to-date.
 async fn create_unconfirmed_subscriber(app: &TestApp) {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
