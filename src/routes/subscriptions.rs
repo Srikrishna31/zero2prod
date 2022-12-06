@@ -57,18 +57,16 @@ impl std::fmt::Display for StoreTokenError {
 pub enum SubscribeError {
     #[error("{0}")]
     ValidationError(String),
-    #[error("Failed to acquire a Postgres connection from the pool")]
-    PoolError(#[source] sqlx::Error),
-    #[error("Failed to insert new subscriber in the database.")]
-    InsertSubscriberError(#[source] sqlx::Error),
-    #[error("Failed to store the confirmation token for a new subscriber.")]
-    TransactionCommitError(#[source] sqlx::Error),
-    #[error("Failed to commit SQL transaction to store a new subscriber.")]
-    StoreTokenError(#[from] StoreTokenError),
-    #[error("Failed to send a confirmation email.")]
-    SendEmailError(#[from] reqwest::Error),
-    #[error("Failed to compose email")]
-    TemplatingError(#[from] tera::Error),
+    // Transparent delegates both `Display`'s and `source`'s implementation to the type wrapped by
+    // `UnexpectedError`.
+    /// We are wrapping dyn std::error::Error into a `Box` because the size of trait objects is not
+    /// known at compile-time: trait objects can be used to store different types which will most
+    /// likely have a different layout in memory. To use Rust's terminology, they are *unsized* - they
+    /// do not implement the `Sized` marker trait. A `Box` stores the trait object itself on the heap,
+    /// while we store the pointer to its heap location in `SubscribeError::UnexpectedError` the
+    /// pointer itself has a known size at compile-time - problem solved, we are `Sized` again.
+    #[error(transparent)]
+    UnexpectedError(#[from] Box<dyn std::error::Error>),
 }
 
 impl std::fmt::Debug for SubscribeError {
@@ -77,22 +75,11 @@ impl std::fmt::Debug for SubscribeError {
     }
 }
 
-// impl From<String> for SubscribeError {
-//     fn from(e: String) -> Self {
-//         Self::ValidationError(e)
-//     }
-// }
-
 impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {
         match self {
             SubscribeError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscribeError::PoolError(_)
-            | SubscribeError::TransactionCommitError(_)
-            | SubscribeError::InsertSubscriberError(_)
-            | SubscribeError::StoreTokenError(_)
-            | SubscribeError::SendEmailError(_)
-            | SubscribeError::TemplatingError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            SubscribeError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -205,20 +192,25 @@ pub async fn subscribe(
 ) -> Result<HttpResponse, SubscribeError> {
     // We no longer have `#[from]` for `ValidationError`, so we need to map the error explicitly.
     let new_subscriber = form.0.try_into().map_err(SubscribeError::ValidationError)?;
-    let mut transaction = pool.begin().await.map_err(SubscribeError::PoolError)?;
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
-        .map_err(SubscribeError::InsertSubscriberError)?;
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
     let subscription_token = generate_subscription_token();
 
     // The `?` operator transparently invokes the `Into` trait on our behalf - we don't need an
     // explicit `map_err` anymore.
-    store_token(&mut transaction, subscriber_id, &subscription_token).await?;
+    store_token(&mut transaction, subscriber_id, &subscription_token)
+        .await
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     transaction
         .commit()
         .await
-        .map_err(SubscribeError::TransactionCommitError)?;
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     send_confirmation_email(
         &email_client,
@@ -227,7 +219,8 @@ pub async fn subscribe(
         &subscription_token,
         &templates,
     )
-    .await?;
+    .await
+    .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -276,14 +269,19 @@ async fn send_confirmation_email(
 
     let mut template_context = Context::new();
     template_context.insert("confirmation_link", &confirmation_link);
-    let html_body = templates.render("confirmation.html", &template_context)?;
+    let html_body = templates
+        .render("confirmation.html", &template_context)
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
-    let plain_body = templates.render("confirmation.txt", &template_context)?;
+    let plain_body = templates
+        .render("confirmation.txt", &template_context)
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     // We are ignoring email delivery errors for now.
     email_client
         .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
-        .await?;
+        .await
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
 
     Ok(())
 }
