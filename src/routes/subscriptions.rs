@@ -38,20 +38,37 @@ impl std::fmt::Display for StoreTokenError {
     }
 }
 
+/// # thiserror crate and Procedural Macros
+/// `thiserror::Error` is a procedural macro used via a #[ derive(/* */) ] attribute.
+///
+/// The macro receives, at compile-time, the definition of SubscribeError as input and returns another
+/// stream of tokens as output - it *generates new Rust code*, which is then compiled into the final
+/// binary.
+///
+/// Within the context of #[ derive(thiserror::Error) ] we get access to other attributes to achieve
+/// the behavior we are looking for:
+/// * #[ error(/* */) ] defines the `Display` representation of the enum variant it is applied to.
+/// * #[ source ] is used to denote what should be returned as root cause in `Error::source`;
+/// * #[ from ] automatically derives an implementation of From for the type it has been applied to
+/// into the top-level error type(e.g. impl From<StoreTokenError> for SubscribeError {/* */}). The
+/// field annotated with #[ from ] is also used as error source, saving us from having to use two
+/// annotations on the same field.
 #[derive(thiserror::Error)]
 pub enum SubscribeError {
     #[error("{0}")]
     ValidationError(String),
     #[error("Failed to acquire a Postgres connection from the pool")]
-    PoolError(sqlx::Error),
+    PoolError(#[source] sqlx::Error),
     #[error("Failed to insert new subscriber in the database.")]
-    InsertSubscriberError(sqlx::Error),
+    InsertSubscriberError(#[source] sqlx::Error),
     #[error("Failed to store the confirmation token for a new subscriber.")]
-    TransactionCommitError(sqlx::Error),
+    TransactionCommitError(#[source] sqlx::Error),
     #[error("Failed to commit SQL transaction to store a new subscriber.")]
-    StoreTokenError(StoreTokenError),
+    StoreTokenError(#[from] StoreTokenError),
     #[error("Failed to send a confirmation email.")]
-    SendEmailError(reqwest::Error),
+    SendEmailError(#[from] reqwest::Error),
+    #[error("Failed to compose email")]
+    TemplatingError(#[from] tera::Error),
 }
 
 impl std::fmt::Debug for SubscribeError {
@@ -60,23 +77,11 @@ impl std::fmt::Debug for SubscribeError {
     }
 }
 
-impl From<reqwest::Error> for SubscribeError {
-    fn from(e: reqwest::Error) -> Self {
-        Self::SendEmailError(e)
-    }
-}
-
-impl From<StoreTokenError> for SubscribeError {
-    fn from(e: StoreTokenError) -> Self {
-        Self::StoreTokenError(e)
-    }
-}
-
-impl From<String> for SubscribeError {
-    fn from(e: String) -> Self {
-        Self::ValidationError(e)
-    }
-}
+// impl From<String> for SubscribeError {
+//     fn from(e: String) -> Self {
+//         Self::ValidationError(e)
+//     }
+// }
 
 impl ResponseError for SubscribeError {
     fn status_code(&self) -> StatusCode {
@@ -86,7 +91,8 @@ impl ResponseError for SubscribeError {
             | SubscribeError::TransactionCommitError(_)
             | SubscribeError::InsertSubscriberError(_)
             | SubscribeError::StoreTokenError(_)
-            | SubscribeError::SendEmailError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | SubscribeError::SendEmailError(_)
+            | SubscribeError::TemplatingError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -197,7 +203,8 @@ pub async fn subscribe(
     base_url: web::Data<ApplicationBaseUrl>,
     templates: web::Data<&Tera>,
 ) -> Result<HttpResponse, SubscribeError> {
-    let new_subscriber = form.0.try_into()?;
+    // We no longer have `#[from]` for `ValidationError`, so we need to map the error explicitly.
+    let new_subscriber = form.0.try_into().map_err(SubscribeError::ValidationError)?;
     let mut transaction = pool.begin().await.map_err(SubscribeError::PoolError)?;
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
@@ -262,25 +269,23 @@ async fn send_confirmation_email(
     base_url: &String,
     subscription_token: &str,
     templates: &Tera,
-) -> Result<(), String> {
+) -> Result<(), SubscribeError> {
     // Build a confirmation link with a dynamic root
     let confirmation_link =
         format!("{base_url}/subscriptions/confirm?subscription_token={subscription_token}");
 
     let mut template_context = Context::new();
     template_context.insert("confirmation_link", &confirmation_link);
-    let html_body = templates
-        .render("confirmation.html", &template_context)
-        .map_err(|e| e.to_string())?;
-    let plain_body = templates
-        .render("confirmation.txt", &template_context)
-        .map_err(|e| e.to_string())?;
+    let html_body = templates.render("confirmation.html", &template_context)?;
+
+    let plain_body = templates.render("confirmation.txt", &template_context)?;
 
     // We are ignoring email delivery errors for now.
     email_client
         .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
-        .await
-        .map_err(|e| e.to_string())
+        .await?;
+
+    Ok(())
 }
 
 #[tracing::instrument(
