@@ -3,7 +3,7 @@ use actix_web::{web, HttpResponse};
 #[derive(serde::Deserialize)]
 pub struct BodyData {
     title: String,
-    content: Content
+    content: Content,
 }
 
 #[derive(serde::Deserialize)]
