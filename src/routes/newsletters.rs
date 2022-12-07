@@ -90,9 +90,14 @@ async fn get_confirmed_subscribers(
     // Map into the domain type
     let confirmed_subscribers = rows
         .into_iter()
-        .map(|r| ConfirmedSubscriber {
-            // Just panic if validation fails
-            email: SubscriberEmail::parse(r.email).unwrap(),
+        .filter_map(|r| match SubscriberEmail::parse(r.email) {
+            Ok(email) => Some(ConfirmedSubscriber { email }),
+            Err(error) => {
+                tracing::warn!(
+                    "A confirmed subscriber is using an invalid email address.\n{error}"
+                );
+                None
+            }
         })
         .collect();
 
