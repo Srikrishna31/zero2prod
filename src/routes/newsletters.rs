@@ -1,8 +1,10 @@
+use crate::domain::SubscriberEmail;
+use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
 use actix_web::{http::StatusCode, web, HttpResponse, ResponseError};
+use anyhow::Context;
 use sqlx::PgPool;
 use std::fmt::Formatter;
-use tracing::error;
 
 #[derive(thiserror::Error)]
 pub enum PublishError {
@@ -37,23 +39,45 @@ pub struct Content {
 }
 
 pub async fn publish_newsletter(
-    _body: web::Json<BodyData>,
+    body: web::Json<BodyData>,
     pool: web::Data<PgPool>,
+    email_client: web::Data<EmailClient>,
 ) -> Result<HttpResponse, PublishError> {
-    let _subscribers = get_confirmed_subscribers(&pool).await?;
+    let subscribers = get_confirmed_subscribers(&pool).await?;
+    for subscriber in subscribers {
+        let email = subscriber.email.clone();
+        email_client
+            .send_email(
+                subscriber.email,
+                &body.title,
+                &body.content.html,
+                &body.content.text,
+            )
+            .await
+            .with_context(|| format!("Failed to send newsletter issue to {:?}", &email))?;
+    }
+
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Clone)]
 struct ConfirmedSubscriber {
-    email: String,
+    email: SubscriberEmail,
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
 async fn get_confirmed_subscribers(
     pool: &PgPool,
 ) -> Result<Vec<ConfirmedSubscriber>, anyhow::Error> {
+    // We only need `Row` to map the data coming out of this query. Nesting its definition inside the
+    // function itself is a simple way to clearly communicate this coupling (and to ensure it doesn't
+    // get used elsewhere by mistake).
+    struct Row {
+        email: String,
+    }
+
     let rows = sqlx::query_as!(
-        ConfirmedSubscriber,
+        Row,
         r#"
         SELECT email
         FROM subscriptions
@@ -63,5 +87,14 @@ async fn get_confirmed_subscribers(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows)
+    // Map into the domain type
+    let confirmed_subscribers = rows
+        .into_iter()
+        .map(|r| ConfirmedSubscriber {
+            // Just panic if validation fails
+            email: SubscriberEmail::parse(r.email).unwrap(),
+        })
+        .collect();
+
+    Ok(confirmed_subscribers)
 }
