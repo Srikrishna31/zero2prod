@@ -25,12 +25,7 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
             "html" : "<p>Newsletter body as HTML</p>",
         }
     });
-    let response = reqwest::Client::new()
-        .post(&format!("{}/newsletters", &app.address))
-        .json(&newsletter_request_body)
-        .send()
-        .await
-        .expect("Failed to execute request.");
+    let response = app.post_newsletters(newsletter_request_body).await;
 
     // Assert
     assert_eq!(response.status().as_u16(), 200);
@@ -114,18 +109,12 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
             "html" : "<p>Newsletter body as HTML</p>",
         }
     });
-    let response = reqwest::Client::new()
-        .post(&format!("{}/newsletters", &app.address))
-        .json(&newsletter_request_body)
-        .send()
-        .await
-        .expect("Failed to execute request");
+    let response = app.post_newsletters(newsletter_request_body).await;
 
     // Assert
     assert_eq!(response.status().as_u16(), 200);
     // Mock verifies on Drop that we have sent the newsletter email
 }
-
 
 #[tokio::test]
 async fn newsletters_returns_400_for_invalid_data() {
@@ -139,21 +128,16 @@ async fn newsletters_returns_400_for_invalid_data() {
                 "html" : "<p>Newsletter body as HTML</p>",
             }
                 }),
-            "missing title"
-            ),
+            "missing title",
+        ),
         (
             serde_json::json!({"title":"Newsletter!"}),
             "missing_content",
-            ),
+        ),
     ];
 
     for (invalid_body, error_message) in test_cases {
-        let response = reqwest::Client::new()
-            .post(&format!("{}/newsletters", &app.address))
-            .json(&invalid_body)
-            .send()
-            .await
-            .expect("Failed to execute request");
+        let response = app.post_newsletters(invalid_body).await;
 
         // Assert
         assert_eq!(
