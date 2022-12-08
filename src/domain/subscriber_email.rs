@@ -1,6 +1,6 @@
 use validator::validate_email;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
@@ -16,6 +16,13 @@ impl SubscriberEmail {
 impl AsRef<str> for SubscriberEmail {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+impl std::fmt::Display for SubscriberEmail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // We just forward it to the Display implementation of the wrapped string
+        self.0.fmt(f)
     }
 }
 
