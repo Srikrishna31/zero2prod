@@ -148,3 +148,38 @@ async fn newsletters_returns_400_for_invalid_data() {
         );
     }
 }
+
+/// # Basic Authentication
+/// The API must look for the `Authorization` header in the incoming request, structured as follows:
+///
+/// `Authorization: Basic <encoded credentials>`
+///
+/// where `<encoded credentials>` is the base64-encoding of {username}:{password}.
+///
+/// base64-encoding ensures that all the characters in the output are ASCII, but it does not provide
+/// any kind of protection: decoding requires no secrets. In other words, encoding is not encryption.
+#[tokio::test]
+async fn requests_missing_authorization_are_rejected() {
+    // Arrange
+    let app = spawn_app().await;
+
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .json(&serde_json::json!({
+            "title": "Newsletter title",
+            "content": {
+                "text" : "Newsletter body as plain text",
+                "html" : "<p>Newsletter body as HTML</p>",
+            }
+        }))
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    // Asert
+    assert_eq!(401, response.status().as_u16());
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        response.headers()["www-Authenticate"]
+    );
+}
