@@ -280,7 +280,7 @@ async fn send_confirmation_email(
 
     // We are ignoring email delivery errors for now.
     email_client
-        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
         .context("Error sending email")?;
 
