@@ -45,6 +45,7 @@ thiserror = "1"
 anyhow = "1"
 base64="0.13"
 sha3="0.10"
+argon2 = {version="0.4", features = ["std"] }
 #Using table-like toml syntax to avoid a super-long line!
 [dependencies.sqlx]
 version = "0.6"
