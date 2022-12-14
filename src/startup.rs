@@ -2,6 +2,7 @@ use crate::configuration::{DatabaseSettings, Settings};
 use crate::{email_client::EmailClient, routes};
 use actix_web::{dev::Server, web, web::Data, App, HttpServer};
 use once_cell::sync::Lazy;
+use secrecy::Secret;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
 use tera::Tera;
@@ -17,6 +18,9 @@ pub struct Application {
     port: u16,
     server: Server,
 }
+
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);
 
 /// We need to define a wrapper type in order to retrieve the URL in the `subscribe` handler.
 /// Retrieval from the context, in actix-web, is type-based: using a raw `String` would expose us to
@@ -55,6 +59,7 @@ impl Application {
             connection_pool,
             email_client,
             configuration.application.base_url,
+            HmacSecret(configuration.application.hmac_secret),
         )?;
 
         // We "save" the bound port in one of `Application`'s fields.
@@ -113,6 +118,7 @@ fn run(
     db_pool: PgPool,
     email_client: EmailClient,
     base_url: String,
+    hmac_secret: HmacSecret,
 ) -> Result<Server, std::io::Error> {
     // Wrap the connection in a smart pointer
     let db_pool = web::Data::new(db_pool);
@@ -137,6 +143,7 @@ fn run(
             .app_data(email_client.clone())
             .app_data(base_url.clone())
             .app_data(templates.clone())
+            .app_data(Data::new(hmac_secret.clone()))
     })
     .listen(listener)?
     .run();
