@@ -46,6 +46,7 @@ anyhow = "1"
 base64="0.13"
 argon2 = {version="0.4", features = ["std"] }
 urlencoding = "2"
+htmlescape = "0.3"
 #Using table-like toml syntax to avoid a super-long line!
 [dependencies.sqlx]
 version = "0.6"
