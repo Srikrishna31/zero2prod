@@ -47,7 +47,7 @@ pub async fn login_form(
     let html_body = templates
         .render("login.html", &template_context)
         .context("Error rendering login html")
-        .map_err(|e| LoginError::UnexpectedError(e.into()))?;
+        .map_err(LoginError::UnexpectedError)?;
 
     Ok(HttpResponse::Ok()
         .content_type(ContentType::html())
