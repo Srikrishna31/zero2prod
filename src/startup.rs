@@ -130,6 +130,7 @@ fn run(
             .route("/subscriptions/confirm", web::get().to(routes::confirm))
             .route("/newsletters", web::post().to(routes::publish_newsletter))
             .route("/", web::get().to(routes::home))
+            .route("/login", web::get().to(routes::login_form))
             // Register the connection as part of the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
