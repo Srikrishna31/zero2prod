@@ -4,9 +4,11 @@ use crate::routes::error_chain_fmt;
 use actix_web::body::BoxBody;
 use actix_web::http::header::LOCATION;
 use actix_web::{web, HttpResponse, ResponseError};
+use hmac::{Hmac, Mac};
 use secrecy::Secret;
 use sqlx::PgPool;
 use std::fmt::Formatter;
+use actix_web::http::StatusCode;
 
 #[allow(dead_code)]
 #[derive(serde::Deserialize)]
@@ -67,10 +69,14 @@ impl std::fmt::Debug for LoginError {
 }
 
 impl ResponseError for LoginError {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::SEE_OTHER
+    }
+
     fn error_response(&self) -> HttpResponse<BoxBody> {
         let encoded_error = urlencoding::Encoded::new(self.to_string());
         HttpResponse::build(self.status_code())
-            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+            .insert_header((LOCATION, format!("/login?error={encoded_error}")))
             .finish()
     }
 }

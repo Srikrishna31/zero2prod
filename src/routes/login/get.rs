@@ -26,6 +26,10 @@ pub struct QueryParams {
 ///
 /// Message authentication codes (MACs) are a common technique to provide message authentication - a
 /// *tag* is added to the message allowing verifiers to check its integrity and origin.
+///
+/// HMAC are a well-known family of MACs - **h**ash-based **m**essage **a**uthentication **c**odes.
+/// The secret is prepended to the message and the resulting string is fed into the hash function. The
+/// resulting hash is then concatenated to the secret and hashed again - the output is message tag.
 pub async fn login_form(
     query: web::Query<QueryParams>,
     templates: web::Data<&Tera>,
