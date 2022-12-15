@@ -1,31 +1,10 @@
 use crate::routes::LoginError;
 use crate::startup::HmacSecret;
 use actix_web::http::header::ContentType;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use anyhow::Context as anyhow_ctx;
-use hmac::{Hmac, Mac};
-use secrecy::ExposeSecret;
 use tera::{Context, Tera};
 
-#[derive(serde::Deserialize)]
-pub struct QueryParams {
-    error: String,
-    tag: String,
-}
-
-impl QueryParams {
-    fn verify(self, secret: &HmacSecret) -> Result<String, anyhow::Error> {
-        let tag = hex::decode(self.tag)?;
-        let query_string = format!("error={}", urlencoding::Encoded::new(&self.error));
-
-        let mut mac =
-            Hmac::<sha2::Sha256>::new_from_slice(secret.0.expose_secret().as_bytes()).unwrap();
-        mac.update(query_string.as_bytes());
-        mac.verify_slice(&tag)?;
-
-        Ok(self.error)
-    }
-}
 /// # Cross-Site-Scripting(XSS)
 /// Query parameters are not private - our backend server cannot prevent users from tweaking the URL.
 /// When the attacker injects HTML fragments or JavaScript snippets into a trusted website by
@@ -48,25 +27,12 @@ impl QueryParams {
 /// The secret is prepended to the message and the resulting string is fed into the hash function. The
 /// resulting hash is then concatenated to the secret and hashed again - the output is message tag.
 pub async fn login_form(
-    query: Option<web::Query<QueryParams>>,
+    request: HttpRequest,
     templates: web::Data<&Tera>,
-    secret: web::Data<HmacSecret>,
 ) -> Result<HttpResponse, LoginError> {
-    let error_html = match query {
+    let error_html = match request.cookie("_flash") {
         None => "".into(),
-        Some(query) => match query.0.verify(&secret) {
-            Ok(error) => {
-                format!("<p><i>{}</i><p>", htmlescape::encode_minimal(&error))
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error.message = %e,
-                    error.cause_chain = ?e,
-                    "Failed to verify query parameters using the HMAC tag"
-                );
-                "".into()
-            }
-        },
+        Some(cookie) => format!("<p><i>{}</i></p>", cookie.value()),
     };
 
     let mut template_context = Context::new();
