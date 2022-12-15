@@ -1,5 +1,5 @@
 use crate::routes::LoginError;
-use crate::startup::HmacSecret;
+use actix_web::cookie::Cookie;
 use actix_web::http::header::ContentType;
 use actix_web::{web, HttpRequest, HttpResponse};
 use anyhow::Context as anyhow_ctx;
@@ -42,7 +42,13 @@ pub async fn login_form(
         .context("Error rendering login html")
         .map_err(LoginError::UnexpectedError)?;
 
-    Ok(HttpResponse::Ok()
+    let mut response = HttpResponse::Ok()
         .content_type(ContentType::html())
-        .body(html_body))
+        .body(html_body);
+
+    response
+        .add_removal_cookie(&Cookie::new("_flash", ""))
+        .unwrap();
+
+    Ok(response)
 }
