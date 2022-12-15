@@ -4,6 +4,7 @@ use crate::routes::error_chain_fmt;
 use actix_web::http::header::LOCATION;
 use actix_web::http::StatusCode;
 use actix_web::{error::InternalError, web, HttpResponse, ResponseError};
+use actix_web_flash_messages::FlashMessage;
 use secrecy::Secret;
 use sqlx::PgPool;
 use std::fmt::Formatter;
@@ -50,6 +51,11 @@ pub async fn login(
                 AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
             };
+            // The `FlashMessagesFramework` middleware takes care of all the heavy-lifting behind the
+            // scenes - creating the cookie, signing it, setting the right properties, etc.
+            // We can also attach multiple flash messages to a single response - the framework takes
+            // care of how they should be combined and represented in the storage layer.
+            FlashMessage::error(e.to_string()).send();
             let response = HttpResponse::SeeOther()
                 .insert_header((LOCATION, "/login"))
                 .insert_header(("Set-Cookie", format!("_flash={e}")))

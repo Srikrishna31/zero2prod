@@ -1,8 +1,9 @@
 use crate::routes::LoginError;
-use actix_web::cookie::Cookie;
 use actix_web::http::header::ContentType;
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpResponse};
+use actix_web_flash_messages::{IncomingFlashMessages, Level};
 use anyhow::Context as anyhow_ctx;
+use std::fmt::Write;
 use tera::{Context, Tera};
 
 /// # Cross-Site-Scripting(XSS)
@@ -27,13 +28,13 @@ use tera::{Context, Tera};
 /// The secret is prepended to the message and the resulting string is fed into the hash function. The
 /// resulting hash is then concatenated to the secret and hashed again - the output is message tag.
 pub async fn login_form(
-    request: HttpRequest,
+    flash_messages: IncomingFlashMessages,
     templates: web::Data<&Tera>,
 ) -> Result<HttpResponse, LoginError> {
-    let error_html = match request.cookie("_flash") {
-        None => "".into(),
-        Some(cookie) => format!("<p><i>{}</i></p>", cookie.value()),
-    };
+    let mut error_html = String::new();
+    for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {
+        writeln!(error_html, "<p><i>{}</i></p>", m.content()).unwrap();
+    }
 
     let mut template_context = Context::new();
     template_context.insert("error_html", &error_html);
@@ -42,13 +43,7 @@ pub async fn login_form(
         .context("Error rendering login html")
         .map_err(LoginError::UnexpectedError)?;
 
-    let mut response = HttpResponse::Ok()
+    Ok(HttpResponse::Ok()
         .content_type(ContentType::html())
-        .body(html_body);
-
-    response
-        .add_removal_cookie(&Cookie::new("_flash", ""))
-        .unwrap();
-
-    Ok(response)
+        .body(html_body))
 }
