@@ -68,7 +68,7 @@ features = [
 version = "0.11"
 default-features = false
 # We need the `json` feature flag to serialize/deserialize JSON payloads
-features = ["json", "rustls-tls"]
+features = ["json", "rustls-tls", "cookies"]
 
 # Dev dependencies are used exclusively when running tests or examples.
 # They do not get included in the final application binary!
