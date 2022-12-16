@@ -20,7 +20,7 @@ use zero2prod::{configuration, startup::Application, telemetry};
 /// Downstream layers can piggyback on `Registry`'s functionality and focus on their purpose: filtering
 /// what spans should be processed, formatting span data, shipping span data to remote systems, etc.
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     //Panic if we can't read configuration
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
     // We have removed the hard-coded `8000` - it's now coming from our settings!
