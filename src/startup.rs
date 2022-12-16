@@ -153,6 +153,7 @@ async fn run(
             .route("/", web::get().to(routes::home))
             .route("/login", web::get().to(routes::login_form))
             .route("/login", web::post().to(routes::login))
+            .route("/admin/dashboard", web::get().to(routes::admin_dashboard))
             // Register the connection as part of the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
