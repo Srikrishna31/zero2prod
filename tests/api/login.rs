@@ -1,7 +1,5 @@
 use crate::helpers;
 use crate::helpers::{assert_is_redirect_to, spawn_app};
-use tracing::log::log;
-use zero2prod::routes::login;
 
 /// Cookies are set by attaching a special HTTP header to the response-`Set-Cookie`. In its simplest
 /// form it looks like this:
