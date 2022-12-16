@@ -1,6 +1,7 @@
 use crate::authentication;
 use crate::authentication::{AuthError, Credentials};
 use crate::routes::error_chain_fmt;
+use actix_session::Session;
 use actix_web::http::header::LOCATION;
 use actix_web::http::StatusCode;
 use actix_web::{error::InternalError, web, HttpResponse, ResponseError};
@@ -25,12 +26,13 @@ pub struct FormData {
 /// depending on the HTTP verb and the semantic meaning we want to communicate(e.g. temporary vs
 /// permanent redirection).
 #[tracing::instrument(
-    skip(form, pool),
+    skip(form, pool, session),
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
 pub async fn login(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
+    session: Session,
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
         username: form.0.username,
@@ -42,6 +44,11 @@ pub async fn login(
     match authentication::validate_credentials(credentials, &pool).await {
         Ok(user_id) => {
             tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
+            session.renew();
+            session
+                .insert("user_id", user_id)
+                .map_err(|e| login_redirect(LoginError::UnexpectedError(e.into())))?;
+
             Ok(HttpResponse::SeeOther()
                 .insert_header((LOCATION, "/admin/dashboard"))
                 .finish())
@@ -51,19 +58,23 @@ pub async fn login(
                 AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
             };
-            // The `FlashMessagesFramework` middleware takes care of all the heavy-lifting behind the
-            // scenes - creating the cookie, signing it, setting the right properties, etc.
-            // We can also attach multiple flash messages to a single response - the framework takes
-            // care of how they should be combined and represented in the storage layer.
-            FlashMessage::error(e.to_string()).send();
-            let response = HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/login"))
-                .insert_header(("Set-Cookie", format!("_flash={e}")))
-                .finish();
             //Save the error reporting in the logs for debugging purposes.
-            Err(InternalError::from_response(e, response))
+            Err(login_redirect(e))
         }
     }
+}
+
+fn login_redirect(e: LoginError) -> InternalError<LoginError> {
+    // The `FlashMessagesFramework` middleware takes care of all the heavy-lifting behind the
+    // scenes - creating the cookie, signing it, setting the right properties, etc.
+    // We can also attach multiple flash messages to a single response - the framework takes
+    // care of how they should be combined and represented in the storage layer.
+    FlashMessage::error(e.to_string()).send();
+    let response = HttpResponse::SeeOther()
+        .insert_header((LOCATION, "/login"))
+        .finish();
+
+    InternalError::from_response(e, response)
 }
 
 #[derive(thiserror::Error)]
