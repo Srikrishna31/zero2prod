@@ -121,7 +121,7 @@ impl TestApp {
         self.get_admin_dashboard().await.text().await.unwrap()
     }
 
-    pub async fn get_change_password(&self) -> reqwest::Response() {
+    pub async fn get_change_password(&self) -> reqwest::Response {
         self.api_client
             .get(&format!("{}/admin/password", &self.address))
             .send()
@@ -130,7 +130,8 @@ impl TestApp {
     }
 
     pub async fn post_change_password<Body>(&self, body: &Body) -> reqwest::Response
-    where Body: serde::Serialize,
+    where
+        Body: serde::Serialize,
     {
         self.api_client
             .post(&format!("{}/admin/password", &self.address))
