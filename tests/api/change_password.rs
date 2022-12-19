@@ -1,6 +1,5 @@
 use crate::helpers::{assert_is_redirect_to, spawn_app};
 use uuid::Uuid;
-use zero2prod::routes::login;
 
 #[tokio::test]
 async fn you_must_be_logged_in_to_see_the_change_password_form() {
