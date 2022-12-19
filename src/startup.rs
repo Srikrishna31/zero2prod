@@ -9,6 +9,8 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
 use tera::Tera;
 use tracing_actix_web::TracingLogger;
+use actix_web_lab::middleware::from_fn;
+use crate::authentication::reject_anonymous_users;
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
@@ -146,20 +148,21 @@ async fn run(
                 redis_store.clone(),
                 secret_key.clone(),
             ))
-            .route("/health_check", web::get().to(routes::health_check))
-            .route("/subscriptions", web::post().to(routes::subscribe))
-            .route("/subscriptions/confirm", web::get().to(routes::confirm))
-            .route("/newsletters", web::post().to(routes::publish_newsletter))
             .route("/", web::get().to(routes::home))
             .route("/login", web::get().to(routes::login_form))
             .route("/login", web::post().to(routes::login))
-            .route("/admin/dashboard", web::get().to(routes::admin_dashboard))
-            .route(
-                "/admin/password",
-                web::get().to(routes::change_password_form),
+            .route("/health_check", web::get().to(routes::health_check))
+            .route("/newsletters", web::post().to(routes::publish_newsletter))
+            .route("/subscriptions", web::post().to(routes::subscribe))
+            .route("/subscriptions/confirm", web::get().to(routes::confirm))
+            .service(
+                web::scope("/admin")
+                    .wrap(from_fn(reject_anonymous_users))
+                    .route("/dashboard", web::get().to(routes::admin_dashboard))
+                    .route("/password", web::get().to(routes::change_password_form))
+                    .route("/password", web::post().to(routes::change_password))
+                    .route("/logout", web::post().to(routes::log_out))
             )
-            .route("/admin/password", web::post().to(routes::change_password))
-            .route("/admin/logout", web::post().to(routes::log_out))
             // Register the connection as part of the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())

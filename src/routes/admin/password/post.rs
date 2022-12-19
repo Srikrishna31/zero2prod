@@ -1,4 +1,4 @@
-use crate::authentication::{validate_credentials, AuthError, Credentials};
+use crate::authentication::{validate_credentials, AuthError, Credentials, UserId};
 use crate::routes::admin::dashboard::get_username;
 use crate::session_state::TypedSession;
 use crate::utils::{e500, see_other};
@@ -10,7 +10,6 @@ use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 pub struct FormData {
     current_password: Secret<String>,
@@ -31,10 +30,10 @@ async fn reject_anonymous_users(session: TypedSession) -> Result<Uuid, actix_web
 
 pub async fn change_password(
     form: web::Form<FormData>,
-    session: TypedSession,
+    user_id: web::ReqData<UserId>,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let user_id = reject_anonymous_users(session).await?;
+    let user_id = user_id.into_inner();
 
     // `Secret<String>` does not implement `Eq`, therefore we need to compare the underlying `String`.
     if form.new_password.expose_secret() != form.new_password_check.expose_secret() {
@@ -45,7 +44,7 @@ pub async fn change_password(
         return Ok(see_other("/admin/password"));
     }
 
-    let username = get_username(user_id, &pool).await.map_err(e500)?;
+    let username = get_username(*user_id, &pool).await.map_err(e500)?;
 
     let credentials = Credentials {
         username,
@@ -62,7 +61,7 @@ pub async fn change_password(
         };
     }
 
-    crate::authentication::change_password(user_id, form.0.new_password, &pool)
+    crate::authentication::change_password(*user_id, form.0.new_password, &pool)
         .await
         .map_err(e500)?;
 
