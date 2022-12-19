@@ -1,7 +1,7 @@
 use crate::routes::LoginError;
 use actix_web::http::header::ContentType;
 use actix_web::{web, HttpResponse};
-use actix_web_flash_messages::{IncomingFlashMessages, Level};
+use actix_web_flash_messages::IncomingFlashMessages;
 use anyhow::Context as anyhow_ctx;
 use std::fmt::Write;
 use tera::{Context, Tera};

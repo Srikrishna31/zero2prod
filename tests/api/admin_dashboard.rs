@@ -30,7 +30,6 @@ async fn logout_clears_session_state() {
     let html_page = app.get_admin_dashboard_html().await;
     assert!(html_page.contains(&format!("Welcome {}", app.test_user.username)));
 
-
     // Act - Part3 - Logout
     let response = app.post_logout().await;
     assert_is_redirect_to(&response, "/login");
