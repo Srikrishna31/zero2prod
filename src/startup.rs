@@ -1,16 +1,16 @@
+use crate::authentication::reject_anonymous_users;
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::{email_client::EmailClient, routes};
 use actix_session::{storage::RedisSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, web, web::Data, App, HttpServer};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
+use actix_web_lab::middleware::from_fn;
 use once_cell::sync::Lazy;
 use secrecy::{ExposeSecret, Secret};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
 use tera::Tera;
 use tracing_actix_web::TracingLogger;
-use actix_web_lab::middleware::from_fn;
-use crate::authentication::reject_anonymous_users;
 
 pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
@@ -161,7 +161,7 @@ async fn run(
                     .route("/dashboard", web::get().to(routes::admin_dashboard))
                     .route("/password", web::get().to(routes::change_password_form))
                     .route("/password", web::post().to(routes::change_password))
-                    .route("/logout", web::post().to(routes::log_out))
+                    .route("/logout", web::post().to(routes::log_out)),
             )
             // Register the connection as part of the application state
             .app_data(db_pool.clone())
