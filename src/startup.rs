@@ -159,6 +159,7 @@ async fn run(
                 web::get().to(routes::change_password_form),
             )
             .route("/admin/password", web::post().to(routes::change_password))
+            .route("/admin/logout", web::post().to(routes::log_out))
             // Register the connection as part of the application state
             .app_data(db_pool.clone())
             .app_data(email_client.clone())

@@ -32,7 +32,8 @@ pub async fn login_form(
     templates: web::Data<&Tera>,
 ) -> Result<HttpResponse, LoginError> {
     let mut error_html = String::new();
-    for m in flash_messages.iter().filter(|m| m.level() == Level::Error) {
+    // Display all messages, not just errors!
+    for m in flash_messages.iter() {
         writeln!(error_html, "<p><i>{}</i></p>", m.content()).unwrap();
     }
 
