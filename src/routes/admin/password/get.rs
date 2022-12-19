@@ -1,4 +1,3 @@
-use crate::utils::{e500, see_other};
 use crate::authentication::UserId;
 use actix_web::http::header::ContentType;
 use actix_web::{web, HttpResponse};

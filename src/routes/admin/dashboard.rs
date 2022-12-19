@@ -1,4 +1,4 @@
-use crate::session_state::TypedSession;
+use crate::authentication::UserId;
 use crate::utils::e500;
 use actix_web::http::header::{ContentType, LOCATION};
 use actix_web::{web, HttpResponse};
@@ -8,16 +8,18 @@ use tera::{Context as tcontext, Tera};
 use uuid::Uuid;
 
 pub async fn admin_dashboard(
-    session: TypedSession,
+    user_id: web::ReqData<UserId>,
     pool: web::Data<PgPool>,
     templates: web::Data<&Tera>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let username = if let Some(user_id) = session.get_user_id().map_err(e500)? {
-        get_username(user_id, &pool).await.map_err(e500)?
-    } else {
-        return Ok(HttpResponse::SeeOther()
-            .insert_header((LOCATION, "/login"))
-            .finish());
+    let user_id = user_id.into_inner();
+    let username = match get_username(*user_id, &pool).await.map_err(e500) {
+        Ok(user) => user,
+        Err(_) => {
+            return Ok(HttpResponse::SeeOther()
+                .insert_header((LOCATION, "/login"))
+                .finish())
+        }
     };
 
     let mut template_context = tcontext::new();
