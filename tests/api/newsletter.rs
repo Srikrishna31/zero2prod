@@ -3,6 +3,7 @@ use uuid::Uuid;
 use wiremock::matchers::{any, method, path};
 use wiremock::{Mock, ResponseTemplate};
 
+#[ignore]
 #[tokio::test]
 async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     // Arrange
@@ -89,6 +90,7 @@ async fn create_confirmed_subscriber(app: &TestApp) {
         .unwrap();
 }
 
+#[ignore]
 #[tokio::test]
 async fn newsletters_are_delivered_to_confirmed_subscribers() {
     // Arrange
