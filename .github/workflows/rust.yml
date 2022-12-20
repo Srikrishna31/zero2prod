@@ -96,10 +96,10 @@ jobs:
           command: test
           args: --verbose
 
-      - name: Code Coverage
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          args: '--ignore-tests --avoid-cfg-tarpaulin'
+#      - name: Code Coverage
+#        uses: actions-rs/tarpaulin@v0.1
+#        with:
+#          args: '--ignore-tests --avoid-cfg-tarpaulin'
 
       - name: Security Vulnerability check
         run: cargo audit
