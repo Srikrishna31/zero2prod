@@ -159,7 +159,10 @@ async fn run(
                 web::scope("/admin")
                     .wrap(from_fn(reject_anonymous_users))
                     .route("/dashboard", web::get().to(routes::admin_dashboard))
-                    .route("/newsletters", web::get().to(routes::publish_newsletter_form))
+                    .route(
+                        "/newsletters",
+                        web::get().to(routes::publish_newsletter_form),
+                    )
                     .route("/newsletters", web::post().to(routes::publish_newsletter))
                     .route("/password", web::get().to(routes::change_password_form))
                     .route("/password", web::post().to(routes::change_password))
