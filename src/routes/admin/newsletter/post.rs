@@ -14,6 +14,9 @@ pub struct FormData {
     html_content: String,
 }
 
+/// # Idempotency
+/// An API endpoint is retry-safe(or **idempotent**) if the caller has no way to **observe** if a
+/// request has been sent to the server once or multiple times.
 #[tracing::instrument(
     name = "Publish a newsletter issue",
     skip(form, pool, email_client, user_id)
