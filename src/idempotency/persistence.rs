@@ -85,6 +85,8 @@ pub async fn save_response(
         h
     };
 
+    dbg!(&body);
+
     sqlx::query_unchecked!(
         r#"
         INSERT INTO idempotency (
