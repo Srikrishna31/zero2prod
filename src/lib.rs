@@ -7,5 +7,6 @@ pub mod session_state;
 pub mod startup;
 pub mod telemetry;
 mod utils;
+mod idempotency;
 
 extern crate tera;
