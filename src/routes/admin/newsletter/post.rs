@@ -1,7 +1,8 @@
 use crate::authentication::UserId;
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
-use crate::utils::{e500, see_other};
+use crate::idempotency::{get_saved_response, save_response, IdempotencyKey};
+use crate::utils::{e400, e500, see_other};
 use actix_web::{web, web::ReqData, HttpResponse};
 use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
@@ -12,8 +13,12 @@ pub struct FormData {
     title: String,
     text_content: String,
     html_content: String,
+    idempotency_key: String,
 }
 
+/// # Idempotency
+/// An API endpoint is retry-safe(or **idempotent**) if the caller has no way to **observe** if a
+/// request has been sent to the server once or multiple times.
 #[tracing::instrument(
     name = "Publish a newsletter issue",
     skip(form, pool, email_client, user_id)
@@ -25,17 +30,29 @@ pub async fn publish_newsletter(
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    let user_id = user_id.into_inner();
+    // We must destructure the form to avoid upsetting the borrow-checker
+    let FormData {
+        title,
+        text_content,
+        html_content,
+        idempotency_key,
+    } = form.0;
+    let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(e400)?;
+
+    if let Some(saved_response) = get_saved_response(&pool, &idempotency_key, *user_id)
+        .await
+        .map_err(e500)?
+    {
+        return Ok(saved_response);
+    }
+
     let subscribers = get_confirmed_subscribers(&pool).await.map_err(e500)?;
     for subscriber in subscribers {
         match subscriber {
             Ok(subscriber) => {
                 email_client
-                    .send_email(
-                        &subscriber.email,
-                        &form.title,
-                        &form.html_content,
-                        &form.text_content,
-                    )
+                    .send_email(&subscriber.email, &title, &html_content, &text_content)
                     .await
                     .with_context(|| {
                         format!("Failed to send newsletter issue to {}", subscriber.email)
@@ -48,8 +65,13 @@ pub async fn publish_newsletter(
             }
         }
     }
-    FlashMessage::info("The newsletter has been published!").send();
-    Ok(see_other("/admin/newsletters"))
+    FlashMessage::info("The newsletter issue has been published!").send();
+    let response = see_other("/admin/newsletters");
+    let response = save_response(&pool, &idempotency_key, *user_id, response)
+        .await
+        .map_err(e500)?;
+
+    Ok(response)
 }
 
 struct ConfirmedSubscriber {

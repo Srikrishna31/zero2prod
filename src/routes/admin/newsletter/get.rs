@@ -13,8 +13,11 @@ pub async fn publish_newsletter_form(
         writeln!(msg_html, "<p><i>{}</i></p>", m.content()).unwrap();
     }
 
+    let idempotency_key = uuid::Uuid::new_v4();
+
     let mut context = Context::new();
     context.insert("msg_html", &msg_html);
+    context.insert("idempotency_key", &idempotency_key);
 
     let html_body = templates.render("newsletter_form.html", &context).unwrap();
     Ok(HttpResponse::Ok()
