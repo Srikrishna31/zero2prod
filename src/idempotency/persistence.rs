@@ -3,6 +3,13 @@ use actix_web::{http::StatusCode, HttpResponse};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[derive(Debug, sqlx::Type)]
+#[sqlx(type_name = "header_pair")]
+struct HeaderPairRecord {
+    name: String,
+    value: Vec<u8>,
+}
+
 pub async fn get_saved_response(
     pool: &PgPool,
     idempotency_key: &IdempotencyKey,
@@ -13,7 +20,7 @@ pub async fn get_saved_response(
         SELECT
             response_status_code,
             response_headers as "response_headers: Vec<HeaderPairRecord>",
-            response_body,
+            response_body
         FROM idempotency
         WHERE
             user_id = $1 AND
@@ -35,11 +42,4 @@ pub async fn get_saved_response(
     } else {
         Ok(None)
     }
-}
-
-#[derive(Debug, sqlx::Type)]
-#[sqlx(type_name = "header_pair")]
-struct HeaderPairRecord {
-    name: String,
-    value: Vec<u8>,
 }
