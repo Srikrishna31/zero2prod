@@ -1,5 +1,5 @@
 use super::IdempotencyKey;
-use actix_web::{http::StatusCode, HttpResponse};
+use actix_web::{body::to_bytes, http::StatusCode, HttpResponse};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -42,4 +42,51 @@ pub async fn get_saved_response(
     } else {
         Ok(None)
     }
+}
+
+/// # MessageBody and HTTP Streaming
+/// HTTP/1.1 supports another mechanism to transfer data - `Transfer-Encoding: chunked`, also known
+/// as **HTTP Streaming**.
+///
+/// The server breaks down the payload into multiple chunks and sends them over to the caller one at
+/// a time instead of accumulating the entire body in memory first. It allows the server to significantly
+/// reduce its memory usage. It is quite useful when working on large payloads such as files or results
+/// from a large query.
+///
+/// You pull data, one chunk at a time, until you have fetched it all. When the response is not being
+/// streamed, the data is available all at once - `poll_next` returns it all in one go.
+///
+/// Pulling a chunk of data from the payload stream requires a mutable reference to the stream itself -
+/// once the chunk has been read, there is no way to "replay" the stream and read it again.
+///
+/// There is a common pattern to work around this:
+/// * Get ownership of the body via .into_parts()
+/// * Buffer the whole body in memory via to_bytes;
+/// * *Do whatever you have to do with the body;*
+/// * Re-assemble the response using .set_body() on the request head.
+pub async fn save_response(
+    pool: &PgPool,
+    idempotency_key: &IdempotencyKey,
+    user_id: Uuid,
+    http_response: HttpResponse,
+) -> Result<HttpResponse, anyhow::Error> {
+    let (response_head, body) = http_response.into_parts();
+    // `MessageBody::Error` is not `Send` + `Sync`, therefore it doesn't play nicely with `anyhow`
+    let body = to_bytes(body).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    let status_code = response_head.status().as_u16() as i16;
+    let headers = {
+        let mut h = Vec::with_capacity(response_head.headers().len());
+        for (name, value) in response_head.headers().iter() {
+            let name = name.as_str().to_owned();
+            let value = value.as_bytes().to_owned();
+            h.push(HeaderPairRecord { name, value });
+        }
+        h
+    };
+
+    // TODO: SQL Query
+
+    // We need `.map_into_boxed_body` to go from `HttpResponse<Bytes>` to `HttpResponse<BoxBody>`
+    let http_response = response_head.set_body(body).map_into_boxed_body();
+    Ok(http_response)
 }
