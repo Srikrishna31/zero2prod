@@ -1,4 +1,4 @@
-use actix_web::{http::StatusCode, HttpResponse};
+use actix_web::HttpResponse;
 use reqwest::header::LOCATION;
 
 // Return an opaque 500 while preserving the error's root cause for logging.
