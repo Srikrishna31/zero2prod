@@ -2,7 +2,7 @@ use super::IdempotencyKey;
 use actix_web::{body::to_bytes, http::StatusCode, HttpResponse};
 use anyhow::anyhow;
 use sqlx::postgres::PgTypeInfo;
-use sqlx::{postgres::PgHasArrayType, PgPool, Transaction, Postgres};
+use sqlx::{postgres::PgHasArrayType, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 #[derive(Debug, sqlx::Type)]
