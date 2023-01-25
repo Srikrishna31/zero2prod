@@ -5,7 +5,8 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::{startup, startup::Application, telemetry};
+use zero2prod::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
+use zero2prod::{email_client::EmailClient, startup, startup::Application, telemetry};
 
 pub(crate) struct TestApp {
     pub(crate) address: String,
@@ -14,6 +15,7 @@ pub(crate) struct TestApp {
     pub(crate) port: u16,
     pub(crate) test_user: TestUser,
     pub(crate) api_client: reqwest::Client,
+    pub(crate) email_client: EmailClient,
 }
 
 /// Confirmation links embedded in the request to the email API.
@@ -184,6 +186,18 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue =
+                try_execute_task(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
+            {
+                break;
+            }
+        }
+    }
 }
 
 // Ensure that the `tracing` stack is only initialised once using `once_cell`
@@ -253,6 +267,7 @@ pub(crate) async fn spawn_app() -> TestApp {
         port,
         test_user: TestUser::generate(),
         api_client: client,
+        email_client: configuration.email_client.client(),
     };
 
     test_app.test_user.store(&test_app.db_pool).await;
