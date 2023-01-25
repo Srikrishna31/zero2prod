@@ -1,5 +1,6 @@
-use crate::email_client::EmailClient;
 use crate::domain::SubscriberEmail;
+use crate::email_client::EmailClient;
+use crate::{configuration::Settings, startup::get_connection_pool};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::time::Duration;
 use tracing::{field::display, Span};
@@ -7,7 +8,7 @@ use uuid::Uuid;
 
 enum ExecutionOutcome {
     TaskCompleted,
-    EmptyQueue
+    EmptyQueue,
 }
 
 #[tracing::instrument(
@@ -20,7 +21,7 @@ enum ExecutionOutcome {
 )]
 async fn try_execute_task(
     pool: &PgPool,
-    email_client: &EmailClient
+    email_client: &EmailClient,
 ) -> Result<ExecutionOutcome, anyhow::Error> {
     let task = dequeue_task(pool).await?;
     if task.is_none() {
@@ -40,9 +41,9 @@ async fn try_execute_task(
                 if let Err(e) = email_client
                     .send_email(
                         &email,
-                                &issue.title,
-                                &issue.html_content,
-                                &issue.text_content,
+                        &issue.title,
+                        &issue.html_content,
+                        &issue.text_content,
                     )
                     .await
                 {
@@ -64,7 +65,9 @@ async fn try_execute_task(
 type PgTransaction = Transaction<'static, Postgres>;
 
 #[tracing::instrument(skip_all)]
-async fn dequeue_task(pool: &PgPool) -> Result<Option<(PgTransaction, Uuid, String)>, anyhow::Error> {
+async fn dequeue_task(
+    pool: &PgPool,
+) -> Result<Option<(PgTransaction, Uuid, String)>, anyhow::Error> {
     let mut transaction = pool.begin().await?;
     let r = sqlx::query!(
         r#"
@@ -83,7 +86,7 @@ async fn dequeue_task(pool: &PgPool) -> Result<Option<(PgTransaction, Uuid, Stri
             transaction,
             r.newsletter_issue_id,
             r.subscriber_email,
-            )))
+        )))
     } else {
         Ok(None)
     }
@@ -112,7 +115,6 @@ async fn delete_task(
     Ok(())
 }
 
-
 struct NewsletterIssue {
     title: String,
     text_content: String,
@@ -120,10 +122,7 @@ struct NewsletterIssue {
 }
 
 #[tracing::instrument(skip_all)]
-async fn get_issue(
-    pool: &PgPool,
-    issue_id: Uuid
-) -> Result<NewsletterIssue, anyhow::Error> {
+async fn get_issue(pool: &PgPool, issue_id: Uuid) -> Result<NewsletterIssue, anyhow::Error> {
     let issue = sqlx::query_as!(
         NewsletterIssue,
         r#"
@@ -140,10 +139,7 @@ async fn get_issue(
     Ok(issue)
 }
 
-async fn worker_loop(
-    pool: &PgPool,
-    email_client: EmailClient
-) -> Result<(), anyhow::Error> {
+async fn worker_loop(pool: PgPool, email_client: EmailClient) -> Result<(), anyhow::Error> {
     loop {
         match try_execute_task(&pool, &email_client).await {
             Ok(ExecutionOutcome::EmptyQueue) => {
@@ -155,4 +151,24 @@ async fn worker_loop(
             Ok(ExecutionOutcome::TaskCompleted) => {}
         }
     }
+}
+
+pub async fn run_worker_until_stopped(configuration: Settings) -> Result<(), anyhow::Error> {
+    let connection_pool = get_connection_pool(&configuration.database);
+
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address.");
+
+    let timeout = configuration.email_client.timeout();
+    let email_client = EmailClient::new(
+        &configuration.email_client.base_url,
+        sender_email,
+        configuration.email_client.authorization_token,
+        timeout,
+    )
+    .expect("Error building email client.");
+
+    worker_loop(connection_pool, email_client).await
 }
