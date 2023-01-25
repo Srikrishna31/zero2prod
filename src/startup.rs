@@ -35,13 +35,6 @@ pub struct ApplicationBaseUrl(pub String);
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
-
-        let sender_email = configuration
-            .email_client
-            .sender()
-            .expect("Invalid sender email address");
-
-        let timeout = configuration.email_client.timeout();
         let email_client = configuration.email_client.client();
 
         let address = format!(
