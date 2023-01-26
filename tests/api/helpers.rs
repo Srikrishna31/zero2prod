@@ -62,29 +62,6 @@ impl TestApp {
         ConfirmationLinks { html, plain_text }
     }
 
-    pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        let (username, password) = self.test_user().await;
-
-        self.api_client
-            .post(&format!("{}/newsletters", &self.address))
-            // Random credentials!
-            // `reqwest` does all the encoding/formatting heavy-lifting for us.
-            .basic_auth(username, Some(password))
-            .json(&body)
-            .send()
-            .await
-            .expect("Failed to execute request")
-    }
-
-    pub async fn test_user(&self) -> (String, String) {
-        let row = sqlx::query!("SELECT username, password_hash FROM users LIMIT 1",)
-            .fetch_one(&self.db_pool)
-            .await
-            .expect("Failed to create test users.");
-
-        (row.username, row.password_hash)
-    }
-
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
     where
         Body: serde::Serialize,

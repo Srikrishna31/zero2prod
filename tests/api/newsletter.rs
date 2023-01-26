@@ -1,12 +1,10 @@
 use crate::helpers::{assert_is_redirect_to, spawn_app, ConfirmationLinks, TestApp};
-use actix_web::middleware::ErrorHandlerResponse::Response;
 use fake::faker::internet::en::SafeEmail;
 use fake::faker::name::en::Name;
 use fake::Fake;
 use std::time::Duration;
-use uuid::Uuid;
 use wiremock::matchers::{any, method, path};
-use wiremock::{Mock, MockBuilder, ResponseTemplate};
+use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
 async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
@@ -268,9 +266,4 @@ async fn concurrent_form_submission_is_handled_gracefully() {
     app.dispatch_all_pending_emails().await;
 
     // Mock verifies on Drop that we have sent the newsletter email **once**
-}
-
-// Short-hand for a common mocking setup
-fn when_sending_an_email() -> MockBuilder {
-    Mock::given(path("/email")).and(method("POST"))
 }
