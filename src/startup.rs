@@ -179,6 +179,6 @@ static TEMPLATES: Lazy<Tera> = Lazy::new(|| {
     //Disable auto-escaping for now.
     tera.autoescape_on(vec![]);
     let template_names: Vec<&str> = tera.get_template_names().collect();
-    println!("Registered templates: {:?}", template_names);
+    println!("Registered templates: {template_names:?}");
     tera
 });
