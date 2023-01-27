@@ -20,7 +20,7 @@ name = "zero2prod"
 
 [dependencies]
 actix-web="4"
-tokio = {version = "1", features = ["macros", "rt-multi-thread"]}
+tokio = {version = "1.18.4", features = ["macros", "rt-multi-thread"]}
 # We need the optional `derive` feature to use `serde`'s procedural macros:
 # `#[derive(Serialize)]` and `#[derive(Deserialize)]`.
 # The feature is not enabled by default to avoid pulling in unnecessary dependencies for projects that do not need it.
@@ -76,7 +76,7 @@ features = ["json", "rustls-tls", "cookies"]
 # They do not get included in the final application binary!
 [dev-dependencies]
 # `claim` provides a fairly comprehensive range of assertions to work with common Rust types - in particular Option and Result
-claim = "0.5"
+claim = "^0.5"
 # We are not using fake >= 2.4 because it relies on rand 0.8 which has been recently released and it is not yet used by
 # quickchek (soved in its upcoming 1.0 release!)
 fake = "~2.3"
