@@ -22,21 +22,24 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
 
     // Act - Part 1 - Submit newsletter form
     // A sketch of the newsletter payload structure.
+    // serde_urlencoded cannot decode nested json objects, so keep all the fields at top level for now.
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
-        "content" : {
-            "text" : "Newsletter body as plain text",
-            "html" : "<p>Newsletter body as HTML</p>",
-            "idempotency_key": uuid::Uuid::new_v4().to_string()
-        }
+        "text_content" : "Newsletter body as plain text",
+        "html_content" : "<p>Newsletter body as HTML</p>",
+        "idempotency_key": uuid::Uuid::new_v4().to_string()
     });
+
+    // For some reason, the post_publish_newsletter function is not able to serialize json
+    // value into a string.
     let response = app.post_publish_newsletter(&newsletter_request_body).await;
     assert_is_redirect_to(&response, "/admin/newsletters");
 
     // Act - Part 2 - Follow the redirect
     let html_page = app.get_publish_newsletter_html().await;
+
     assert!(html_page.contains(
-        "<p><i>The newsletter issue has been accepted - emails will go out shortly.</i><p>"
+        "<p><i>The newsletter issue has been accepted - emails will go out shortly.</i></p>"
     ));
     app.dispatch_all_pending_emails().await;
 
@@ -124,11 +127,9 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     // Act - Part 1 - Submit newsletter form
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
-        "content": {
-            "text" : "Newsletter body as plain text",
-            "html" : "<p>Newsletter body as HTML</p>",
-            "idempotency_key": uuid::Uuid::new_v4().to_string()
-        }
+        "text_content" : "Newsletter body as plain text",
+        "html_content" : "<p>Newsletter body as HTML</p>",
+        "idempotency_key": uuid::Uuid::new_v4().to_string()
     });
     let response = app.post_publish_newsletter(&newsletter_request_body).await;
     assert_is_redirect_to(&response, "/admin/newsletters");
