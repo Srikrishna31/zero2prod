@@ -33,7 +33,7 @@ impl std::fmt::Display for SubscriberEmail {
 #[cfg(test)]
 mod tests {
     use super::SubscriberEmail;
-    use claim::assert_err;
+    use claims::assert_err;
     /// We are importing the `SafeEmail` faker! We also need the `Fake` trait to get access to the
     /// `.fake` method on `SafeEmail`
     use fake::faker::internet::en::SafeEmail;
